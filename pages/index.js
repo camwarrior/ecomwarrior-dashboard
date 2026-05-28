@@ -3,19 +3,20 @@ import {
   BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
   XAxis, YAxis, Tooltip, ResponsiveContainer, Legend
 } from "recharts";
-import { getResumenMensual, getMovimientos, getConfig, getSaldosPorCuenta, getIngresosPorAgencia } from "../lib/sheets";
+import { getResumenMensual, getMovimientos, getSaldosPorCuenta, getIngresosPorAgencia } from "../lib/sheets";
 import StatCard from "../components/StatCard";
 import SectionTitle from "../components/SectionTitle";
 
 const fmt = (n) => `$${Math.round(n).toLocaleString("en-US")}`;
 
+const anioActual = new Date().getFullYear();
+const anioTributario = `AT ${anioActual + 1}`;
+
 const CustomTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null;
   return (
-    <div style={{
-      background: "#111", border: "1px solid #2e2e2e", borderRadius: 8,
-      padding: "10px 14px", fontFamily: "'DM Mono', monospace", fontSize: 12,
-    }}>
+    <div style={{ background: "#111", border: "1px solid #2e2e2e", borderRadius: 8,
+      padding: "10px 14px", fontFamily: "'DM Mono', monospace", fontSize: 12 }}>
       <p style={{ color: "#888", marginBottom: 6 }}>{label}</p>
       {payload.map((p, i) => (
         <p key={i} style={{ color: p.color }}>{p.name}: {fmt(p.value)}</p>
@@ -24,7 +25,7 @@ const CustomTooltip = ({ active, payload, label }) => {
   );
 };
 
-export default function Dashboard({ resumen, movimientos, config, saldos, agencias, lastUpdated }) {
+export default function Dashboard({ resumen, movimientos, saldos, agencias, lastUpdated }) {
   const soloIngresos = resumen.reduce((s, r) => s + r.ingresos, 0);
   const soloGastos   = resumen.reduce((s, r) => s + r.totalGastos, 0);
   const utilidadNeta = soloIngresos - soloGastos;
@@ -61,22 +62,15 @@ export default function Dashboard({ resumen, movimientos, config, saldos, agenci
         * { box-sizing: border-box; }
         body { margin: 0; }
         .grid-kpi { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 40px; }
-        .grid-charts { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 40px; }
-        .grid-agencias { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 40px; }
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 40px; }
         .main-pad { padding: 24px 40px; }
         .header-pad { padding: 20px 40px; }
-        .table-scroll { overflow-x: auto; }
-        .hide-mobile { display: table-cell; }
+        .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
         @media (max-width: 768px) {
           .grid-kpi { grid-template-columns: repeat(2, 1fr); }
-          .grid-charts { grid-template-columns: 1fr; }
-          .grid-agencias { grid-template-columns: 1fr; }
+          .grid-2 { grid-template-columns: 1fr; }
           .main-pad { padding: 16px; }
           .header-pad { padding: 16px; }
-          .hide-mobile { display: none; }
-        }
-        @media (max-width: 480px) {
-          .grid-kpi { grid-template-columns: 1fr 1fr; }
         }
       `}</style>
 
@@ -92,7 +86,7 @@ export default function Dashboard({ resumen, movimientos, config, saldos, agenci
               Ecom Warrior LLC
             </h1>
             <p style={{ fontSize: 12, color: "#555", fontFamily: "'DM Mono', monospace", marginTop: 2, marginBottom: 0 }}>
-              {config.anioTributario} · TC ${config.tipoCambio.toLocaleString("es-CL")} CLP/USD
+              {anioTributario}
             </p>
           </div>
           <div style={{ textAlign: "right" }}>
@@ -107,11 +101,11 @@ export default function Dashboard({ resumen, movimientos, config, saldos, agenci
           <div className="grid-kpi">
             <StatCard label="Ingresos totales" value={soloIngresos} color="green" />
             <StatCard label="Gastos totales"   value={soloGastos}   color="red" />
-            <StatCard label="Utilidad neta"    value={utilidadNeta}  color={utilidadNeta >= 0 ? "green" : "red"} />
-            <StatCard label="Saldo Mercury"    value={saldoMercury}  color="blue" />
+            <StatCard label="Utilidad neta"    value={utilidadNeta} color={utilidadNeta >= 0 ? "green" : "red"} />
+            <StatCard label="Saldo Mercury"    value={saldoMercury} color="blue" />
             <StatCard label="Saldo Slash"      value={Math.abs(saldoSlash)} color="amber"
               sub={saldoSlash < 0 ? "gastos acumulados" : "saldo positivo"} />
-            <StatCard label="Saldo Wise"       value={saldoWise}     color="default" sub="cuenta inactiva" />
+            <StatCard label="Saldo Wise"       value={saldoWise} color="default" sub="cuenta inactiva" />
           </div>
 
           {/* Ingresos vs Gastos */}
@@ -132,7 +126,7 @@ export default function Dashboard({ resumen, movimientos, config, saldos, agenci
           </div>
 
           {/* Desglose gastos + Utilidad acumulada */}
-          <div className="grid-charts">
+          <div className="grid-2">
             <div>
               <SectionTitle>Desglose de gastos</SectionTitle>
               <div style={{ background: "#111", border: "1px solid #1a1a1a", borderRadius: 12, padding: "24px 16px" }}>
@@ -145,7 +139,7 @@ export default function Dashboard({ resumen, movimientos, config, saldos, agenci
                     <PieChart>
                       <Pie data={pieData} cx="50%" cy="50%" innerRadius={55} outerRadius={85}
                         dataKey="value" nameKey="name" paddingAngle={3}>
-                        {pieData.map((entry, i) => <Cell key={i} fill={entry.color} stroke="transparent" />)}
+                        {pieData.map((e, i) => <Cell key={i} fill={e.color} stroke="transparent" />)}
                       </Pie>
                       <Tooltip content={<CustomTooltip />} />
                       <Legend wrapperStyle={{ fontSize: 11, fontFamily: "'DM Mono'", color: "#666" }} />
@@ -172,7 +166,7 @@ export default function Dashboard({ resumen, movimientos, config, saldos, agenci
           </div>
 
           {/* Ingresos por agencia */}
-          <div className="grid-agencias">
+          <div className="grid-2">
             <div>
               <SectionTitle>Ingresos por agencia</SectionTitle>
               <div style={{ background: "#111", border: "1px solid #1a1a1a", borderRadius: 12, padding: "24px 16px" }}>
@@ -185,7 +179,7 @@ export default function Dashboard({ resumen, movimientos, config, saldos, agenci
                     <PieChart>
                       <Pie data={agencias} cx="50%" cy="50%" innerRadius={55} outerRadius={85}
                         dataKey="value" nameKey="name" paddingAngle={3}>
-                        {agencias.map((entry, i) => <Cell key={i} fill={entry.color} stroke="transparent" />)}
+                        {agencias.map((e, i) => <Cell key={i} fill={e.color} stroke="transparent" />)}
                       </Pie>
                       <Tooltip content={<CustomTooltip />} />
                       <Legend wrapperStyle={{ fontSize: 11, fontFamily: "'DM Mono'", color: "#666" }} />
@@ -195,19 +189,18 @@ export default function Dashboard({ resumen, movimientos, config, saldos, agenci
               </div>
             </div>
 
-            {/* Tabla resumen agencias */}
             <div>
               <SectionTitle>Detalle por agencia</SectionTitle>
               <div style={{ background: "#111", border: "1px solid #1a1a1a", borderRadius: 12, overflow: "hidden" }}>
                 {agencias.length === 0 ? (
                   <p style={{ color: "#444", fontSize: 13, textAlign: "center", padding: "60px 20px", fontFamily: "'DM Mono'" }}>
-                    Se mostrará cuando entren pagos de agencias
+                    Se mostrará cuando entren pagos
                   </p>
                 ) : (
                   <table style={{ width: "100%", borderCollapse: "collapse" }}>
                     <thead>
                       <tr style={{ borderBottom: "1px solid #1a1a1a" }}>
-                        {["Agencia", "Total USD", "% del total"].map(h => (
+                        {["Agencia","Total USD","% del total"].map(h => (
                           <th key={h} style={{ padding: "12px 16px", textAlign: "left", fontSize: 10,
                             letterSpacing: "0.12em", textTransform: "uppercase",
                             color: "#444", fontFamily: "'DM Mono'", fontWeight: 400 }}>{h}</th>
@@ -245,8 +238,8 @@ export default function Dashboard({ resumen, movimientos, config, saldos, agenci
                   Sin movimientos registrados aún
                 </p>
               ) : (
-                <div className="table-scroll">
-                  <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 500 }}>
+                <div className="table-wrap">
+                  <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 640 }}>
                     <thead>
                       <tr style={{ borderBottom: "1px solid #1a1a1a" }}>
                         {["Fecha","Tipo","Categoría","Monto USD","Cuenta","Descripción"].map(h => (
@@ -278,10 +271,7 @@ export default function Dashboard({ resumen, movimientos, config, saldos, agenci
                               {esPositivo ? "+" : "-"}{fmt(Math.abs(m.montoUSD))}
                             </td>
                             <td style={{ ...tdStyle, color: "#888", fontFamily: "'DM Mono'", fontSize: 11 }}>{m.cuenta}</td>
-                            <td className="hide-mobile" style={{ ...tdStyle, color: "#666", maxWidth: 200,
-                              overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                              {m.descripcion}
-                            </td>
+                            <td style={{ ...tdStyle, color: "#666", whiteSpace: "nowrap" }}>{m.descripcion}</td>
                           </tr>
                         );
                       })}
@@ -307,17 +297,15 @@ const tdStyle = {
 
 export async function getServerSideProps() {
   try {
-    const [resumen, movimientos, config, saldos, agencias] = await Promise.all([
+    const [resumen, movimientos, saldos, agencias] = await Promise.all([
       getResumenMensual(),
       getMovimientos(),
-      getConfig(),
       getSaldosPorCuenta(),
       getIngresosPorAgencia(),
     ]);
-
     return {
       props: {
-        resumen, movimientos, config, saldos, agencias,
+        resumen, movimientos, saldos, agencias,
         lastUpdated: new Date().toLocaleString("es-CL", {
           day: "2-digit", month: "2-digit", year: "numeric",
           hour: "2-digit", minute: "2-digit",
@@ -325,12 +313,10 @@ export async function getServerSideProps() {
       },
     };
   } catch (e) {
-    console.error("Error fetching sheets:", e.message);
+    console.error("Error:", e.message);
     return {
       props: {
-        resumen: [], movimientos: [],
-        config: { tipoCambio: 940, empresa: "Ecom Warrior LLC", anioTributario: "AT 2026" },
-        saldos: {}, agencias: [],
+        resumen: [], movimientos: [], saldos: {}, agencias: [],
         lastUpdated: "—",
       },
     };
