@@ -4,12 +4,11 @@ import {
   BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
   XAxis, YAxis, Tooltip, ResponsiveContainer, Legend
 } from "recharts";
-import { getMovimientos, getSaldosPorCuenta, getResumenMensual } from "../lib/sheets";
+import { getMovimientos, getResumenMensual } from "../lib/sheets";
 import StatCard from "../components/StatCard";
 import SectionTitle from "../components/SectionTitle";
 
 const fmt = (n) => `$${Math.round(n).toLocaleString("en-US")}`;
-
 const MESES = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
 const COLORES_AGENCIA = ["#4ade80","#60a5fa","#fbbf24","#c084fc","#f87171","#34d399"];
 
@@ -24,8 +23,7 @@ const CustomTooltip = ({ active, payload, label }) => {
   );
 };
 
-export default function Dashboard({ movimientos, saldos, resumen, lastUpdated }) {
-  // Años disponibles en los movimientos
+export default function Dashboard({ movimientos, lastUpdated }) {
   const anos = useMemo(() => {
     const set = new Set(movimientos.map(m => m.anio).filter(Boolean));
     return [...set].sort((a, b) => b - a);
@@ -33,13 +31,19 @@ export default function Dashboard({ movimientos, saldos, resumen, lastUpdated })
 
   const [anoSeleccionado, setAnoSeleccionado] = useState(new Date().getFullYear());
 
-  // Filtrar movimientos por año
+  // Movimientos del año seleccionado (para P&L)
   const movsFiltrados = useMemo(() =>
     movimientos.filter(m => m.anio === anoSeleccionado),
     [movimientos, anoSeleccionado]
   );
 
-  // Totales del año seleccionado
+  // Movimientos hasta el año seleccionado (para saldos acumulados)
+  const movsHasta = useMemo(() =>
+    movimientos.filter(m => m.anio <= anoSeleccionado),
+    [movimientos, anoSeleccionado]
+  );
+
+  // P&L del año seleccionado
   const { ingresos, aportes, gastos } = useMemo(() => {
     let ingresos = 0, aportes = 0, gastos = 0;
     movsFiltrados.forEach(m => {
@@ -52,13 +56,24 @@ export default function Dashboard({ movimientos, saldos, resumen, lastUpdated })
 
   const utilidadNeta = ingresos - gastos;
 
-  // Saldos históricos (siempre totales)
+  // Saldos acumulados hasta el año seleccionado
+  const saldos = useMemo(() => {
+    const s = {};
+    movsHasta.forEach(m => {
+      if (!s[m.cuenta]) s[m.cuenta] = 0;
+      if (m.tipo === "Ingreso" || m.tipo === "Aporte") s[m.cuenta] += m.montoUSD;
+      else if (m.tipo === "Gasto")                     s[m.cuenta] -= Math.abs(m.montoUSD);
+      else if (m.tipo === "Transferencia")              s[m.cuenta] += m.montoUSD;
+    });
+    return s;
+  }, [movsHasta]);
+
   const saldoMercury = saldos["Mercury"] || 0;
   const saldoSlash   = saldos["Slash"]   || 0;
   const saldoWise    = saldos["Wise"]    || 0;
   const saldoTotal   = saldoMercury + saldoSlash + saldoWise;
 
-  // Resumen mensual del año seleccionado (desde Movimientos, calculado en cliente)
+  // Resumen mensual calculado en cliente
   const resumenMensual = useMemo(() => {
     return MESES.map((mes, i) => {
       const mesNum = i + 1;
@@ -66,33 +81,28 @@ export default function Dashboard({ movimientos, saldos, resumen, lastUpdated })
         const partes = m.fecha.split("/");
         return partes.length === 3 && parseInt(partes[1]) === mesNum;
       });
-      const ing = filasMes.filter(m => m.tipo === "Ingreso").reduce((s, m) => s + m.montoUSD, 0);
-      const gas = filasMes.filter(m => m.tipo === "Gasto").reduce((s, m) => s + Math.abs(m.montoUSD), 0);
-      const util = ing - gas;
+      const ing  = filasMes.filter(m => m.tipo === "Ingreso").reduce((s, m) => s + m.montoUSD, 0);
+      const gas  = filasMes.filter(m => m.tipo === "Gasto").reduce((s, m) => s + Math.abs(m.montoUSD), 0);
       const metaAds    = filasMes.filter(m => m.categoria === "Meta Ads").reduce((s, m) => s + Math.abs(m.montoUSD), 0);
       const softwareIA = filasMes.filter(m => m.categoria === "Software IA").reduce((s, m) => s + Math.abs(m.montoUSD), 0);
-      return { mes, ingresos: ing, totalGastos: gas, utilidad: util, metaAds, softwareIA };
+      return { mes, ingresos: ing, totalGastos: gas, utilidad: ing - gas, metaAds, softwareIA };
     });
   }, [movsFiltrados]);
 
-  // Utilidad acumulada
   let acumulado = 0;
   const utilidadAcumulada = resumenMensual.map(r => {
     acumulado += r.utilidad;
     return { mes: r.mes, acumulado };
   });
 
-  // Desglose gastos pie
   const totalMetaAds    = resumenMensual.reduce((s, r) => s + r.metaAds, 0);
   const totalSoftwareIA = resumenMensual.reduce((s, r) => s + r.softwareIA, 0);
-  const totalOtros      = gastos - totalMetaAds - totalSoftwareIA;
   const pieData = [
     { name: "Meta Ads",    value: totalMetaAds,    color: "#f87171" },
     { name: "Software IA", value: totalSoftwareIA, color: "#60a5fa" },
-    { name: "Otros",       value: Math.max(0, totalOtros), color: "#fbbf24" },
+    { name: "Otros",       value: Math.max(0, gastos - totalMetaAds - totalSoftwareIA), color: "#fbbf24" },
   ].filter(d => d.value > 0);
 
-  // Ingresos por agencia
   const agencias = useMemo(() => {
     const totales = {};
     movsFiltrados.filter(m => m.tipo === "Ingreso" && m.agencia).forEach(m => {
@@ -103,7 +113,6 @@ export default function Dashboard({ movimientos, saldos, resumen, lastUpdated })
     }));
   }, [movsFiltrados]);
 
-  // Últimos 8 movimientos del año
   const ultimos = [...movsFiltrados].reverse().slice(0, 8);
 
   return (
@@ -137,7 +146,6 @@ export default function Dashboard({ movimientos, saldos, resumen, lastUpdated })
 
       <div style={{ background: "#0a0a0a", minHeight: "100vh", color: "#e8e8e8" }}>
 
-        {/* Header */}
         <header className="hpad" style={{
           borderBottom: "1px solid #1a1a1a",
           display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12,
@@ -164,7 +172,7 @@ export default function Dashboard({ movimientos, saldos, resumen, lastUpdated })
 
         <main className="main-pad" style={{ maxWidth: 1280, margin: "0 auto" }}>
 
-          {/* KPIs P&L año */}
+          {/* KPIs P&L */}
           <div className="grid-kpi">
             <StatCard label="Ingresos reales" value={ingresos} color="green" sub="comisiones agencias" />
             <StatCard label="Aportes capital"  value={aportes}  color="blue"  sub="no tributable" />
@@ -172,18 +180,18 @@ export default function Dashboard({ movimientos, saldos, resumen, lastUpdated })
             <StatCard label="Utilidad neta"    value={utilidadNeta} color={utilidadNeta >= 0 ? "green" : "red"} sub="ingresos − gastos" />
           </div>
 
-          {/* KPIs Saldos históricos */}
+          {/* KPIs Saldos hasta año seleccionado */}
           <div className="grid-kpi2">
             <StatCard label="Saldo Mercury" value={saldoMercury} color="blue" />
             <StatCard label="Saldo Slash"   value={Math.abs(saldoSlash)} color="amber"
               sub={saldoSlash < 0 ? "gastos acumulados" : "saldo positivo"} />
             <StatCard label="Saldo Wise"    value={saldoWise} color="default" sub="cuenta inactiva" />
-            <StatCard label="Saldo total"   value={saldoTotal} color={saldoTotal >= 0 ? "green" : "red"} sub="todas las cuentas" />
+            <StatCard label="Saldo total"   value={saldoTotal} color={saldoTotal >= 0 ? "green" : "red"} sub={`acumulado hasta ${anoSeleccionado}`} />
           </div>
 
           {/* Ingresos vs Gastos */}
           <div style={{ marginBottom: 40 }}>
-            <SectionTitle>Ingresos vs Gastos por mes — {anoSeleccionado}</SectionTitle>
+            <SectionTitle>Ingresos vs Gastos — {anoSeleccionado}</SectionTitle>
             <div style={{ background: "#111", border: "1px solid #1a1a1a", borderRadius: 12, padding: "24px 16px" }}>
               <ResponsiveContainer width="100%" height={240}>
                 <BarChart data={resumenMensual} barGap={4}>
@@ -198,7 +206,7 @@ export default function Dashboard({ movimientos, saldos, resumen, lastUpdated })
             </div>
           </div>
 
-          {/* Desglose gastos + Utilidad acumulada */}
+          {/* Desglose + Utilidad acumulada */}
           <div className="grid-2">
             <div>
               <SectionTitle>Desglose de gastos — {anoSeleccionado}</SectionTitle>
@@ -218,7 +226,6 @@ export default function Dashboard({ movimientos, saldos, resumen, lastUpdated })
                 )}
               </div>
             </div>
-
             <div>
               <SectionTitle>Utilidad acumulada — {anoSeleccionado}</SectionTitle>
               <div style={{ background: "#111", border: "1px solid #1a1a1a", borderRadius: 12, padding: "24px 16px" }}>
@@ -234,7 +241,7 @@ export default function Dashboard({ movimientos, saldos, resumen, lastUpdated })
             </div>
           </div>
 
-          {/* Ingresos por agencia */}
+          {/* Agencias */}
           <div className="grid-2">
             <div>
               <SectionTitle>Ingresos por agencia — {anoSeleccionado}</SectionTitle>
@@ -254,7 +261,6 @@ export default function Dashboard({ movimientos, saldos, resumen, lastUpdated })
                 )}
               </div>
             </div>
-
             <div>
               <SectionTitle>Detalle por agencia — {anoSeleccionado}</SectionTitle>
               <div style={{ background: "#111", border: "1px solid #1a1a1a", borderRadius: 12, overflow: "hidden" }}>
@@ -352,12 +358,10 @@ const tdStyle = { padding: "12px 16px", fontSize: 12, color: "#888", verticalAli
 
 export async function getServerSideProps() {
   try {
-    const [movimientos, saldos, resumen] = await Promise.all([
-      getMovimientos(), getSaldosPorCuenta(), getResumenMensual(),
-    ]);
+    const movimientos = await getMovimientos();
     return {
       props: {
-        movimientos, saldos, resumen,
+        movimientos,
         lastUpdated: new Date().toLocaleString("es-CL", {
           day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit",
         }),
@@ -365,8 +369,6 @@ export async function getServerSideProps() {
     };
   } catch (e) {
     console.error("Error:", e.message);
-    return {
-      props: { movimientos: [], saldos: {}, resumen: [], lastUpdated: "—" },
-    };
+    return { props: { movimientos: [], lastUpdated: "—" } };
   }
 }
