@@ -1,15 +1,17 @@
 import Head from "next/head";
+import { useState, useMemo } from "react";
 import {
   BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
   XAxis, YAxis, Tooltip, ResponsiveContainer, Legend
 } from "recharts";
-import { getResumenMensual, getMovimientos, getSaldosPorCuenta, getIngresosPorAgencia, getTotalesAnuales } from "../lib/sheets";
+import { getMovimientos, getSaldosPorCuenta, getResumenMensual } from "../lib/sheets";
 import StatCard from "../components/StatCard";
 import SectionTitle from "../components/SectionTitle";
 
 const fmt = (n) => `$${Math.round(n).toLocaleString("en-US")}`;
-const anioActual = new Date().getFullYear();
-const anioTributario = `AT ${anioActual + 1}`;
+
+const MESES = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
+const COLORES_AGENCIA = ["#4ade80","#60a5fa","#fbbf24","#c084fc","#f87171","#34d399"];
 
 const CustomTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null;
@@ -22,30 +24,87 @@ const CustomTooltip = ({ active, payload, label }) => {
   );
 };
 
-export default function Dashboard({ resumen, movimientos, saldos, agencias, totales, lastUpdated }) {
-  const { ingresos, aportes, gastos } = totales;
-  const utilidadNeta = ingresos - gastos;
-  const totalMetaAds    = resumen.reduce((s, r) => s + r.metaAds, 0);
-  const totalSoftwareIA = resumen.reduce((s, r) => s + r.softwareIA, 0);
+export default function Dashboard({ movimientos, saldos, resumen, lastUpdated }) {
+  // Años disponibles en los movimientos
+  const anos = useMemo(() => {
+    const set = new Set(movimientos.map(m => m.anio).filter(Boolean));
+    return [...set].sort((a, b) => b - a);
+  }, [movimientos]);
 
+  const [anoSeleccionado, setAnoSeleccionado] = useState(new Date().getFullYear());
+
+  // Filtrar movimientos por año
+  const movsFiltrados = useMemo(() =>
+    movimientos.filter(m => m.anio === anoSeleccionado),
+    [movimientos, anoSeleccionado]
+  );
+
+  // Totales del año seleccionado
+  const { ingresos, aportes, gastos } = useMemo(() => {
+    let ingresos = 0, aportes = 0, gastos = 0;
+    movsFiltrados.forEach(m => {
+      if (m.tipo === "Ingreso")      ingresos += m.montoUSD;
+      else if (m.tipo === "Aporte")  aportes  += m.montoUSD;
+      else if (m.tipo === "Gasto")   gastos   += Math.abs(m.montoUSD);
+    });
+    return { ingresos, aportes, gastos };
+  }, [movsFiltrados]);
+
+  const utilidadNeta = ingresos - gastos;
+
+  // Saldos históricos (siempre totales)
   const saldoMercury = saldos["Mercury"] || 0;
   const saldoSlash   = saldos["Slash"]   || 0;
   const saldoWise    = saldos["Wise"]    || 0;
   const saldoTotal   = saldoMercury + saldoSlash + saldoWise;
 
+  // Resumen mensual del año seleccionado (desde Movimientos, calculado en cliente)
+  const resumenMensual = useMemo(() => {
+    return MESES.map((mes, i) => {
+      const mesNum = i + 1;
+      const filasMes = movsFiltrados.filter(m => {
+        const partes = m.fecha.split("/");
+        return partes.length === 3 && parseInt(partes[1]) === mesNum;
+      });
+      const ing = filasMes.filter(m => m.tipo === "Ingreso").reduce((s, m) => s + m.montoUSD, 0);
+      const gas = filasMes.filter(m => m.tipo === "Gasto").reduce((s, m) => s + Math.abs(m.montoUSD), 0);
+      const util = ing - gas;
+      const metaAds    = filasMes.filter(m => m.categoria === "Meta Ads").reduce((s, m) => s + Math.abs(m.montoUSD), 0);
+      const softwareIA = filasMes.filter(m => m.categoria === "Software IA").reduce((s, m) => s + Math.abs(m.montoUSD), 0);
+      return { mes, ingresos: ing, totalGastos: gas, utilidad: util, metaAds, softwareIA };
+    });
+  }, [movsFiltrados]);
+
+  // Utilidad acumulada
   let acumulado = 0;
-  const utilidadAcumulada = resumen.map(r => {
+  const utilidadAcumulada = resumenMensual.map(r => {
     acumulado += r.utilidad;
     return { mes: r.mes, acumulado };
   });
 
+  // Desglose gastos pie
+  const totalMetaAds    = resumenMensual.reduce((s, r) => s + r.metaAds, 0);
+  const totalSoftwareIA = resumenMensual.reduce((s, r) => s + r.softwareIA, 0);
+  const totalOtros      = gastos - totalMetaAds - totalSoftwareIA;
   const pieData = [
     { name: "Meta Ads",    value: totalMetaAds,    color: "#f87171" },
     { name: "Software IA", value: totalSoftwareIA, color: "#60a5fa" },
-    { name: "Otros",       value: resumen.reduce((s, r) => s + r.otrosGastos, 0), color: "#fbbf24" },
+    { name: "Otros",       value: Math.max(0, totalOtros), color: "#fbbf24" },
   ].filter(d => d.value > 0);
 
-  const ultimos = [...movimientos].reverse().slice(0, 8);
+  // Ingresos por agencia
+  const agencias = useMemo(() => {
+    const totales = {};
+    movsFiltrados.filter(m => m.tipo === "Ingreso" && m.agencia).forEach(m => {
+      totales[m.agencia] = (totales[m.agencia] || 0) + m.montoUSD;
+    });
+    return Object.entries(totales).map(([name, value], i) => ({
+      name, value, color: COLORES_AGENCIA[i % COLORES_AGENCIA.length]
+    }));
+  }, [movsFiltrados]);
+
+  // Últimos 8 movimientos del año
+  const ultimos = [...movsFiltrados].reverse().slice(0, 8);
 
   return (
     <>
@@ -58,30 +117,44 @@ export default function Dashboard({ resumen, movimientos, saldos, agencias, tota
       <style>{`
         * { box-sizing: border-box; }
         body { margin: 0; }
-        .grid-kpi { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 40px; }
-        .grid-kpi-2 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 40px; }
-        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 40px; }
-        .main-pad { padding: 24px 40px; }
-        .header-pad { padding: 20px 40px; }
+        .grid-kpi  { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
+        .grid-kpi2 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 40px; }
+        .grid-2    { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 40px; }
+        .main-pad  { padding: 24px 40px; }
+        .hpad      { padding: 20px 40px; }
         .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+        .ano-btn { background: transparent; border: 1px solid #2e2e2e; color: #888; padding: 6px 14px; border-radius: 6px; font-family: 'DM Mono', monospace; font-size: 12px; cursor: pointer; transition: all 0.15s; }
+        .ano-btn:hover { border-color: #555; color: #e8e8e8; }
+        .ano-btn.active { background: #e8e8e8; color: #0a0a0a; border-color: #e8e8e8; font-weight: 600; }
         @media (max-width: 768px) {
-          .grid-kpi { grid-template-columns: repeat(2, 1fr); }
-          .grid-kpi-2 { grid-template-columns: repeat(2, 1fr); }
-          .grid-2 { grid-template-columns: 1fr; }
-          .main-pad { padding: 16px; }
-          .header-pad { padding: 16px; }
+          .grid-kpi  { grid-template-columns: repeat(2, 1fr); }
+          .grid-kpi2 { grid-template-columns: repeat(2, 1fr); }
+          .grid-2    { grid-template-columns: 1fr; }
+          .main-pad  { padding: 16px; }
+          .hpad      { padding: 16px; }
         }
       `}</style>
 
       <div style={{ background: "#0a0a0a", minHeight: "100vh", color: "#e8e8e8" }}>
 
-        <header className="header-pad" style={{
+        {/* Header */}
+        <header className="hpad" style={{
           borderBottom: "1px solid #1a1a1a",
-          display: "flex", alignItems: "center", justifyContent: "space-between",
+          display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12,
         }}>
           <div>
             <h1 style={{ fontSize: 18, fontWeight: 700, letterSpacing: "-0.02em", margin: 0 }}>Ecom Warrior LLC</h1>
-            <p style={{ fontSize: 12, color: "#555", fontFamily: "'DM Mono', monospace", marginTop: 2, marginBottom: 0 }}>{anioTributario}</p>
+            <p style={{ fontSize: 12, color: "#555", fontFamily: "'DM Mono', monospace", marginTop: 2, marginBottom: 0 }}>
+              AT {anoSeleccionado + 1}
+            </p>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            {anos.map(a => (
+              <button key={a} className={`ano-btn${a === anoSeleccionado ? " active" : ""}`}
+                onClick={() => setAnoSeleccionado(a)}>
+                {a}
+              </button>
+            ))}
           </div>
           <div style={{ textAlign: "right" }}>
             <p style={{ fontSize: 11, color: "#444", fontFamily: "'DM Mono', monospace", margin: 0 }}>Actualizado</p>
@@ -91,16 +164,16 @@ export default function Dashboard({ resumen, movimientos, saldos, agencias, tota
 
         <main className="main-pad" style={{ maxWidth: 1280, margin: "0 auto" }}>
 
-          {/* KPIs fila 1: P&L */}
+          {/* KPIs P&L año */}
           <div className="grid-kpi">
             <StatCard label="Ingresos reales" value={ingresos} color="green" sub="comisiones agencias" />
-            <StatCard label="Aportes capital" value={aportes} color="blue" sub="no tributable" />
-            <StatCard label="Gastos totales"  value={gastos}  color="red" />
-            <StatCard label="Utilidad neta"   value={utilidadNeta} color={utilidadNeta >= 0 ? "green" : "red"} sub="ingresos − gastos" />
+            <StatCard label="Aportes capital"  value={aportes}  color="blue"  sub="no tributable" />
+            <StatCard label="Gastos totales"   value={gastos}   color="red" />
+            <StatCard label="Utilidad neta"    value={utilidadNeta} color={utilidadNeta >= 0 ? "green" : "red"} sub="ingresos − gastos" />
           </div>
 
-          {/* KPIs fila 2: Saldos */}
-          <div className="grid-kpi-2">
+          {/* KPIs Saldos históricos */}
+          <div className="grid-kpi2">
             <StatCard label="Saldo Mercury" value={saldoMercury} color="blue" />
             <StatCard label="Saldo Slash"   value={Math.abs(saldoSlash)} color="amber"
               sub={saldoSlash < 0 ? "gastos acumulados" : "saldo positivo"} />
@@ -110,10 +183,10 @@ export default function Dashboard({ resumen, movimientos, saldos, agencias, tota
 
           {/* Ingresos vs Gastos */}
           <div style={{ marginBottom: 40 }}>
-            <SectionTitle>Ingresos vs Gastos por mes</SectionTitle>
+            <SectionTitle>Ingresos vs Gastos por mes — {anoSeleccionado}</SectionTitle>
             <div style={{ background: "#111", border: "1px solid #1a1a1a", borderRadius: 12, padding: "24px 16px" }}>
               <ResponsiveContainer width="100%" height={240}>
-                <BarChart data={resumen} barGap={4}>
+                <BarChart data={resumenMensual} barGap={4}>
                   <XAxis dataKey="mes" tick={{ fill: "#555", fontSize: 11, fontFamily: "'DM Mono'" }} axisLine={false} tickLine={false} />
                   <YAxis tick={{ fill: "#555", fontSize: 11, fontFamily: "'DM Mono'" }} axisLine={false} tickLine={false} tickFormatter={v => `$${v.toLocaleString()}`} width={60} />
                   <Tooltip content={<CustomTooltip />} />
@@ -128,10 +201,10 @@ export default function Dashboard({ resumen, movimientos, saldos, agencias, tota
           {/* Desglose gastos + Utilidad acumulada */}
           <div className="grid-2">
             <div>
-              <SectionTitle>Desglose de gastos</SectionTitle>
+              <SectionTitle>Desglose de gastos — {anoSeleccionado}</SectionTitle>
               <div style={{ background: "#111", border: "1px solid #1a1a1a", borderRadius: 12, padding: "24px 16px" }}>
                 {pieData.length === 0 ? (
-                  <p style={{ color: "#444", fontSize: 13, textAlign: "center", padding: "60px 0", fontFamily: "'DM Mono'" }}>Sin gastos registrados aún</p>
+                  <p style={{ color: "#444", fontSize: 13, textAlign: "center", padding: "60px 0", fontFamily: "'DM Mono'" }}>Sin gastos en {anoSeleccionado}</p>
                 ) : (
                   <ResponsiveContainer width="100%" height={220}>
                     <PieChart>
@@ -147,7 +220,7 @@ export default function Dashboard({ resumen, movimientos, saldos, agencias, tota
             </div>
 
             <div>
-              <SectionTitle>Utilidad neta acumulada</SectionTitle>
+              <SectionTitle>Utilidad acumulada — {anoSeleccionado}</SectionTitle>
               <div style={{ background: "#111", border: "1px solid #1a1a1a", borderRadius: 12, padding: "24px 16px" }}>
                 <ResponsiveContainer width="100%" height={220}>
                   <LineChart data={utilidadAcumulada}>
@@ -164,10 +237,10 @@ export default function Dashboard({ resumen, movimientos, saldos, agencias, tota
           {/* Ingresos por agencia */}
           <div className="grid-2">
             <div>
-              <SectionTitle>Ingresos por agencia</SectionTitle>
+              <SectionTitle>Ingresos por agencia — {anoSeleccionado}</SectionTitle>
               <div style={{ background: "#111", border: "1px solid #1a1a1a", borderRadius: 12, padding: "24px 16px" }}>
                 {agencias.length === 0 ? (
-                  <p style={{ color: "#444", fontSize: 13, textAlign: "center", padding: "60px 0", fontFamily: "'DM Mono'" }}>Sin ingresos por agencia aún</p>
+                  <p style={{ color: "#444", fontSize: 13, textAlign: "center", padding: "60px 0", fontFamily: "'DM Mono'" }}>Sin ingresos por agencia en {anoSeleccionado}</p>
                 ) : (
                   <ResponsiveContainer width="100%" height={220}>
                     <PieChart>
@@ -183,7 +256,7 @@ export default function Dashboard({ resumen, movimientos, saldos, agencias, tota
             </div>
 
             <div>
-              <SectionTitle>Detalle por agencia</SectionTitle>
+              <SectionTitle>Detalle por agencia — {anoSeleccionado}</SectionTitle>
               <div style={{ background: "#111", border: "1px solid #1a1a1a", borderRadius: 12, overflow: "hidden" }}>
                 {agencias.length === 0 ? (
                   <p style={{ color: "#444", fontSize: 13, textAlign: "center", padding: "60px 20px", fontFamily: "'DM Mono'" }}>Se mostrará cuando entren pagos</p>
@@ -221,10 +294,10 @@ export default function Dashboard({ resumen, movimientos, saldos, agencias, tota
 
           {/* Últimos movimientos */}
           <div>
-            <SectionTitle>Últimos movimientos</SectionTitle>
+            <SectionTitle>Últimos movimientos — {anoSeleccionado}</SectionTitle>
             <div style={{ background: "#111", border: "1px solid #1a1a1a", borderRadius: 12, overflow: "hidden" }}>
               {ultimos.length === 0 ? (
-                <p style={{ color: "#444", fontSize: 13, textAlign: "center", padding: "40px 0", fontFamily: "'DM Mono'" }}>Sin movimientos registrados aún</p>
+                <p style={{ color: "#444", fontSize: 13, textAlign: "center", padding: "40px 0", fontFamily: "'DM Mono'" }}>Sin movimientos en {anoSeleccionado}</p>
               ) : (
                 <div className="table-wrap">
                   <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 640 }}>
@@ -279,12 +352,12 @@ const tdStyle = { padding: "12px 16px", fontSize: 12, color: "#888", verticalAli
 
 export async function getServerSideProps() {
   try {
-    const [resumen, movimientos, saldos, agencias, totales] = await Promise.all([
-      getResumenMensual(), getMovimientos(), getSaldosPorCuenta(), getIngresosPorAgencia(), getTotalesAnuales(),
+    const [movimientos, saldos, resumen] = await Promise.all([
+      getMovimientos(), getSaldosPorCuenta(), getResumenMensual(),
     ]);
     return {
       props: {
-        resumen, movimientos, saldos, agencias, totales,
+        movimientos, saldos, resumen,
         lastUpdated: new Date().toLocaleString("es-CL", {
           day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit",
         }),
@@ -293,11 +366,7 @@ export async function getServerSideProps() {
   } catch (e) {
     console.error("Error:", e.message);
     return {
-      props: {
-        resumen: [], movimientos: [], saldos: {}, agencias: [],
-        totales: { ingresos: 0, aportes: 0, gastos: 0 },
-        lastUpdated: "—",
-      },
+      props: { movimientos: [], saldos: {}, resumen: [], lastUpdated: "—" },
     };
   }
 }
