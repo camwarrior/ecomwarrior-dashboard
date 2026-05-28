@@ -3,12 +3,11 @@ import {
   BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
   XAxis, YAxis, Tooltip, ResponsiveContainer, Legend
 } from "recharts";
-import { getResumenMensual, getMovimientos, getSaldosPorCuenta, getIngresosPorAgencia } from "../lib/sheets";
+import { getResumenMensual, getMovimientos, getSaldosPorCuenta, getIngresosPorAgencia, getTotalesAnuales } from "../lib/sheets";
 import StatCard from "../components/StatCard";
 import SectionTitle from "../components/SectionTitle";
 
 const fmt = (n) => `$${Math.round(n).toLocaleString("en-US")}`;
-
 const anioActual = new Date().getFullYear();
 const anioTributario = `AT ${anioActual + 1}`;
 
@@ -18,23 +17,21 @@ const CustomTooltip = ({ active, payload, label }) => {
     <div style={{ background: "#111", border: "1px solid #2e2e2e", borderRadius: 8,
       padding: "10px 14px", fontFamily: "'DM Mono', monospace", fontSize: 12 }}>
       <p style={{ color: "#888", marginBottom: 6 }}>{label}</p>
-      {payload.map((p, i) => (
-        <p key={i} style={{ color: p.color }}>{p.name}: {fmt(p.value)}</p>
-      ))}
+      {payload.map((p, i) => <p key={i} style={{ color: p.color }}>{p.name}: {fmt(p.value)}</p>)}
     </div>
   );
 };
 
-export default function Dashboard({ resumen, movimientos, saldos, agencias, lastUpdated }) {
-  const soloIngresos = resumen.reduce((s, r) => s + r.ingresos, 0);
-  const soloGastos   = resumen.reduce((s, r) => s + r.totalGastos, 0);
-  const utilidadNeta = soloIngresos - soloGastos;
+export default function Dashboard({ resumen, movimientos, saldos, agencias, totales, lastUpdated }) {
+  const { ingresos, aportes, gastos } = totales;
+  const utilidadNeta = ingresos - gastos;
   const totalMetaAds    = resumen.reduce((s, r) => s + r.metaAds, 0);
   const totalSoftwareIA = resumen.reduce((s, r) => s + r.softwareIA, 0);
 
   const saldoMercury = saldos["Mercury"] || 0;
   const saldoSlash   = saldos["Slash"]   || 0;
   const saldoWise    = saldos["Wise"]    || 0;
+  const saldoTotal   = saldoMercury + saldoSlash + saldoWise;
 
   let acumulado = 0;
   const utilidadAcumulada = resumen.map(r => {
@@ -61,13 +58,15 @@ export default function Dashboard({ resumen, movimientos, saldos, agencias, last
       <style>{`
         * { box-sizing: border-box; }
         body { margin: 0; }
-        .grid-kpi { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 40px; }
+        .grid-kpi { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 40px; }
+        .grid-kpi-2 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 40px; }
         .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 40px; }
         .main-pad { padding: 24px 40px; }
         .header-pad { padding: 20px 40px; }
         .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
         @media (max-width: 768px) {
           .grid-kpi { grid-template-columns: repeat(2, 1fr); }
+          .grid-kpi-2 { grid-template-columns: repeat(2, 1fr); }
           .grid-2 { grid-template-columns: 1fr; }
           .main-pad { padding: 16px; }
           .header-pad { padding: 16px; }
@@ -76,18 +75,13 @@ export default function Dashboard({ resumen, movimientos, saldos, agencias, last
 
       <div style={{ background: "#0a0a0a", minHeight: "100vh", color: "#e8e8e8" }}>
 
-        {/* Header */}
         <header className="header-pad" style={{
           borderBottom: "1px solid #1a1a1a",
           display: "flex", alignItems: "center", justifyContent: "space-between",
         }}>
           <div>
-            <h1 style={{ fontSize: 18, fontWeight: 700, letterSpacing: "-0.02em", margin: 0 }}>
-              Ecom Warrior LLC
-            </h1>
-            <p style={{ fontSize: 12, color: "#555", fontFamily: "'DM Mono', monospace", marginTop: 2, marginBottom: 0 }}>
-              {anioTributario}
-            </p>
+            <h1 style={{ fontSize: 18, fontWeight: 700, letterSpacing: "-0.02em", margin: 0 }}>Ecom Warrior LLC</h1>
+            <p style={{ fontSize: 12, color: "#555", fontFamily: "'DM Mono', monospace", marginTop: 2, marginBottom: 0 }}>{anioTributario}</p>
           </div>
           <div style={{ textAlign: "right" }}>
             <p style={{ fontSize: 11, color: "#444", fontFamily: "'DM Mono', monospace", margin: 0 }}>Actualizado</p>
@@ -97,15 +91,21 @@ export default function Dashboard({ resumen, movimientos, saldos, agencias, last
 
         <main className="main-pad" style={{ maxWidth: 1280, margin: "0 auto" }}>
 
-          {/* KPIs */}
+          {/* KPIs fila 1: P&L */}
           <div className="grid-kpi">
-            <StatCard label="Ingresos totales" value={soloIngresos} color="green" />
-            <StatCard label="Gastos totales"   value={soloGastos}   color="red" />
-            <StatCard label="Utilidad neta"    value={utilidadNeta} color={utilidadNeta >= 0 ? "green" : "red"} />
-            <StatCard label="Saldo Mercury"    value={saldoMercury} color="blue" />
-            <StatCard label="Saldo Slash"      value={Math.abs(saldoSlash)} color="amber"
+            <StatCard label="Ingresos reales" value={ingresos} color="green" sub="comisiones agencias" />
+            <StatCard label="Aportes capital" value={aportes} color="blue" sub="no tributable" />
+            <StatCard label="Gastos totales"  value={gastos}  color="red" />
+            <StatCard label="Utilidad neta"   value={utilidadNeta} color={utilidadNeta >= 0 ? "green" : "red"} sub="ingresos − gastos" />
+          </div>
+
+          {/* KPIs fila 2: Saldos */}
+          <div className="grid-kpi-2">
+            <StatCard label="Saldo Mercury" value={saldoMercury} color="blue" />
+            <StatCard label="Saldo Slash"   value={Math.abs(saldoSlash)} color="amber"
               sub={saldoSlash < 0 ? "gastos acumulados" : "saldo positivo"} />
-            <StatCard label="Saldo Wise"       value={saldoWise} color="default" sub="cuenta inactiva" />
+            <StatCard label="Saldo Wise"    value={saldoWise} color="default" sub="cuenta inactiva" />
+            <StatCard label="Saldo total"   value={saldoTotal} color={saldoTotal >= 0 ? "green" : "red"} sub="todas las cuentas" />
           </div>
 
           {/* Ingresos vs Gastos */}
@@ -131,14 +131,11 @@ export default function Dashboard({ resumen, movimientos, saldos, agencias, last
               <SectionTitle>Desglose de gastos</SectionTitle>
               <div style={{ background: "#111", border: "1px solid #1a1a1a", borderRadius: 12, padding: "24px 16px" }}>
                 {pieData.length === 0 ? (
-                  <p style={{ color: "#444", fontSize: 13, textAlign: "center", padding: "60px 0", fontFamily: "'DM Mono'" }}>
-                    Sin gastos registrados aún
-                  </p>
+                  <p style={{ color: "#444", fontSize: 13, textAlign: "center", padding: "60px 0", fontFamily: "'DM Mono'" }}>Sin gastos registrados aún</p>
                 ) : (
                   <ResponsiveContainer width="100%" height={220}>
                     <PieChart>
-                      <Pie data={pieData} cx="50%" cy="50%" innerRadius={55} outerRadius={85}
-                        dataKey="value" nameKey="name" paddingAngle={3}>
+                      <Pie data={pieData} cx="50%" cy="50%" innerRadius={55} outerRadius={85} dataKey="value" nameKey="name" paddingAngle={3}>
                         {pieData.map((e, i) => <Cell key={i} fill={e.color} stroke="transparent" />)}
                       </Pie>
                       <Tooltip content={<CustomTooltip />} />
@@ -157,8 +154,7 @@ export default function Dashboard({ resumen, movimientos, saldos, agencias, last
                     <XAxis dataKey="mes" tick={{ fill: "#555", fontSize: 11, fontFamily: "'DM Mono'" }} axisLine={false} tickLine={false} />
                     <YAxis tick={{ fill: "#555", fontSize: 11, fontFamily: "'DM Mono'" }} axisLine={false} tickLine={false} tickFormatter={v => `$${v.toLocaleString()}`} width={60} />
                     <Tooltip content={<CustomTooltip />} />
-                    <Line type="monotone" dataKey="acumulado" name="Utilidad acumulada"
-                      stroke="#4ade80" strokeWidth={2} dot={{ fill: "#4ade80", r: 3 }} activeDot={{ r: 5 }} />
+                    <Line type="monotone" dataKey="acumulado" name="Utilidad acumulada" stroke="#4ade80" strokeWidth={2} dot={{ fill: "#4ade80", r: 3 }} activeDot={{ r: 5 }} />
                   </LineChart>
                 </ResponsiveContainer>
               </div>
@@ -171,14 +167,11 @@ export default function Dashboard({ resumen, movimientos, saldos, agencias, last
               <SectionTitle>Ingresos por agencia</SectionTitle>
               <div style={{ background: "#111", border: "1px solid #1a1a1a", borderRadius: 12, padding: "24px 16px" }}>
                 {agencias.length === 0 ? (
-                  <p style={{ color: "#444", fontSize: 13, textAlign: "center", padding: "60px 0", fontFamily: "'DM Mono'" }}>
-                    Sin ingresos por agencia aún
-                  </p>
+                  <p style={{ color: "#444", fontSize: 13, textAlign: "center", padding: "60px 0", fontFamily: "'DM Mono'" }}>Sin ingresos por agencia aún</p>
                 ) : (
                   <ResponsiveContainer width="100%" height={220}>
                     <PieChart>
-                      <Pie data={agencias} cx="50%" cy="50%" innerRadius={55} outerRadius={85}
-                        dataKey="value" nameKey="name" paddingAngle={3}>
+                      <Pie data={agencias} cx="50%" cy="50%" innerRadius={55} outerRadius={85} dataKey="value" nameKey="name" paddingAngle={3}>
                         {agencias.map((e, i) => <Cell key={i} fill={e.color} stroke="transparent" />)}
                       </Pie>
                       <Tooltip content={<CustomTooltip />} />
@@ -193,17 +186,14 @@ export default function Dashboard({ resumen, movimientos, saldos, agencias, last
               <SectionTitle>Detalle por agencia</SectionTitle>
               <div style={{ background: "#111", border: "1px solid #1a1a1a", borderRadius: 12, overflow: "hidden" }}>
                 {agencias.length === 0 ? (
-                  <p style={{ color: "#444", fontSize: 13, textAlign: "center", padding: "60px 20px", fontFamily: "'DM Mono'" }}>
-                    Se mostrará cuando entren pagos
-                  </p>
+                  <p style={{ color: "#444", fontSize: 13, textAlign: "center", padding: "60px 20px", fontFamily: "'DM Mono'" }}>Se mostrará cuando entren pagos</p>
                 ) : (
                   <table style={{ width: "100%", borderCollapse: "collapse" }}>
                     <thead>
                       <tr style={{ borderBottom: "1px solid #1a1a1a" }}>
                         {["Agencia","Total USD","% del total"].map(h => (
                           <th key={h} style={{ padding: "12px 16px", textAlign: "left", fontSize: 10,
-                            letterSpacing: "0.12em", textTransform: "uppercase",
-                            color: "#444", fontFamily: "'DM Mono'", fontWeight: 400 }}>{h}</th>
+                            letterSpacing: "0.12em", textTransform: "uppercase", color: "#444", fontFamily: "'DM Mono'", fontWeight: 400 }}>{h}</th>
                         ))}
                       </tr>
                     </thead>
@@ -234,9 +224,7 @@ export default function Dashboard({ resumen, movimientos, saldos, agencias, last
             <SectionTitle>Últimos movimientos</SectionTitle>
             <div style={{ background: "#111", border: "1px solid #1a1a1a", borderRadius: 12, overflow: "hidden" }}>
               {ultimos.length === 0 ? (
-                <p style={{ color: "#444", fontSize: 13, textAlign: "center", padding: "40px 0", fontFamily: "'DM Mono'" }}>
-                  Sin movimientos registrados aún
-                </p>
+                <p style={{ color: "#444", fontSize: 13, textAlign: "center", padding: "40px 0", fontFamily: "'DM Mono'" }}>Sin movimientos registrados aún</p>
               ) : (
                 <div className="table-wrap">
                   <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 640 }}>
@@ -244,19 +232,18 @@ export default function Dashboard({ resumen, movimientos, saldos, agencias, last
                       <tr style={{ borderBottom: "1px solid #1a1a1a" }}>
                         {["Fecha","Tipo","Categoría","Monto USD","Cuenta","Descripción"].map(h => (
                           <th key={h} style={{ padding: "12px 16px", textAlign: "left", fontSize: 10,
-                            letterSpacing: "0.12em", textTransform: "uppercase",
-                            color: "#444", fontFamily: "'DM Mono'", fontWeight: 400 }}>{h}</th>
+                            letterSpacing: "0.12em", textTransform: "uppercase", color: "#444", fontFamily: "'DM Mono'", fontWeight: 400 }}>{h}</th>
                         ))}
                       </tr>
                     </thead>
                     <tbody>
                       {ultimos.map((m, i) => {
                         const esPositivo = m.montoUSD >= 0;
-                        const colorTipo = m.tipo === "Ingreso"
-                          ? { bg: "#16391f", text: "#4ade80" }
-                          : m.tipo === "Transferencia"
-                          ? { bg: "#172038", text: "#60a5fa" }
-                          : { bg: "#3b1a1a", text: "#f87171" };
+                        const colorTipo =
+                          m.tipo === "Ingreso"       ? { bg: "#16391f", text: "#4ade80" } :
+                          m.tipo === "Aporte"        ? { bg: "#172038", text: "#60a5fa" } :
+                          m.tipo === "Transferencia" ? { bg: "#2d2009", text: "#fbbf24" } :
+                                                       { bg: "#3b1a1a", text: "#f87171" };
                         return (
                           <tr key={i} style={{ borderBottom: "1px solid #161616" }}>
                             <td style={tdStyle}>{m.fecha}</td>
@@ -288,27 +275,18 @@ export default function Dashboard({ resumen, movimientos, saldos, agencias, last
   );
 }
 
-const tdStyle = {
-  padding: "12px 16px",
-  fontSize: 12,
-  color: "#888",
-  verticalAlign: "middle",
-};
+const tdStyle = { padding: "12px 16px", fontSize: 12, color: "#888", verticalAlign: "middle" };
 
 export async function getServerSideProps() {
   try {
-    const [resumen, movimientos, saldos, agencias] = await Promise.all([
-      getResumenMensual(),
-      getMovimientos(),
-      getSaldosPorCuenta(),
-      getIngresosPorAgencia(),
+    const [resumen, movimientos, saldos, agencias, totales] = await Promise.all([
+      getResumenMensual(), getMovimientos(), getSaldosPorCuenta(), getIngresosPorAgencia(), getTotalesAnuales(),
     ]);
     return {
       props: {
-        resumen, movimientos, saldos, agencias,
+        resumen, movimientos, saldos, agencias, totales,
         lastUpdated: new Date().toLocaleString("es-CL", {
-          day: "2-digit", month: "2-digit", year: "numeric",
-          hour: "2-digit", minute: "2-digit",
+          day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit",
         }),
       },
     };
@@ -317,6 +295,7 @@ export async function getServerSideProps() {
     return {
       props: {
         resumen: [], movimientos: [], saldos: {}, agencias: [],
+        totales: { ingresos: 0, aportes: 0, gastos: 0 },
         lastUpdated: "—",
       },
     };
