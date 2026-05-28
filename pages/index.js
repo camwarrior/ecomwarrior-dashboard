@@ -3,7 +3,7 @@ import {
   BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
   XAxis, YAxis, Tooltip, ResponsiveContainer, Legend
 } from "recharts";
-import { getResumenMensual, getMovimientos, getConfig, getSaldosPorCuenta } from "../lib/sheets";
+import { getResumenMensual, getMovimientos, getConfig, getSaldosPorCuenta, getIngresosPorAgencia } from "../lib/sheets";
 import StatCard from "../components/StatCard";
 import SectionTitle from "../components/SectionTitle";
 
@@ -24,35 +24,29 @@ const CustomTooltip = ({ active, payload, label }) => {
   );
 };
 
-export default function Dashboard({ resumen, movimientos, config, saldos, lastUpdated }) {
-  // ── Totales anuales (excluye transferencias) ────────────
+export default function Dashboard({ resumen, movimientos, config, saldos, agencias, lastUpdated }) {
   const soloIngresos = resumen.reduce((s, r) => s + r.ingresos, 0);
   const soloGastos   = resumen.reduce((s, r) => s + r.totalGastos, 0);
   const utilidadNeta = soloIngresos - soloGastos;
   const totalMetaAds    = resumen.reduce((s, r) => s + r.metaAds, 0);
   const totalSoftwareIA = resumen.reduce((s, r) => s + r.softwareIA, 0);
 
-  // ── Saldo por cuenta (incluye transferencias para saldo real) ──
   const saldoMercury = saldos["Mercury"] || 0;
   const saldoSlash   = saldos["Slash"]   || 0;
   const saldoWise    = saldos["Wise"]    || 0;
-  const saldoTotal   = saldoMercury + saldoSlash + saldoWise;
 
-  // ── Utilidad acumulada ──────────────────────────────────
   let acumulado = 0;
   const utilidadAcumulada = resumen.map(r => {
     acumulado += r.utilidad;
     return { mes: r.mes, acumulado };
   });
 
-  // ── Desglose gastos (pie) ───────────────────────────────
   const pieData = [
     { name: "Meta Ads",    value: totalMetaAds,    color: "#f87171" },
     { name: "Software IA", value: totalSoftwareIA, color: "#60a5fa" },
     { name: "Otros",       value: resumen.reduce((s, r) => s + r.otrosGastos, 0), color: "#fbbf24" },
   ].filter(d => d.value > 0);
 
-  // ── Últimos movimientos ─────────────────────────────────
   const ultimos = [...movimientos].reverse().slice(0, 8);
 
   return (
@@ -60,40 +54,57 @@ export default function Dashboard({ resumen, movimientos, config, saldos, lastUp
       <Head>
         <title>Ecom Warrior LLC — Dashboard</title>
         <meta name="robots" content="noindex" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
       </Head>
+
+      <style>{`
+        * { box-sizing: border-box; }
+        body { margin: 0; }
+        .grid-kpi { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 40px; }
+        .grid-charts { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 40px; }
+        .grid-agencias { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 40px; }
+        .main-pad { padding: 24px 40px; }
+        .header-pad { padding: 20px 40px; }
+        .table-scroll { overflow-x: auto; }
+        .hide-mobile { display: table-cell; }
+        @media (max-width: 768px) {
+          .grid-kpi { grid-template-columns: repeat(2, 1fr); }
+          .grid-charts { grid-template-columns: 1fr; }
+          .grid-agencias { grid-template-columns: 1fr; }
+          .main-pad { padding: 16px; }
+          .header-pad { padding: 16px; }
+          .hide-mobile { display: none; }
+        }
+        @media (max-width: 480px) {
+          .grid-kpi { grid-template-columns: 1fr 1fr; }
+        }
+      `}</style>
 
       <div style={{ background: "#0a0a0a", minHeight: "100vh", color: "#e8e8e8" }}>
 
-        {/* ── Header ── */}
-        <header style={{
+        {/* Header */}
+        <header className="header-pad" style={{
           borderBottom: "1px solid #1a1a1a",
-          padding: "20px 40px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
+          display: "flex", alignItems: "center", justifyContent: "space-between",
         }}>
           <div>
-            <h1 style={{ fontSize: 18, fontWeight: 700, letterSpacing: "-0.02em" }}>
+            <h1 style={{ fontSize: 18, fontWeight: 700, letterSpacing: "-0.02em", margin: 0 }}>
               Ecom Warrior LLC
             </h1>
-            <p style={{ fontSize: 12, color: "#555", fontFamily: "'DM Mono', monospace", marginTop: 2 }}>
+            <p style={{ fontSize: 12, color: "#555", fontFamily: "'DM Mono', monospace", marginTop: 2, marginBottom: 0 }}>
               {config.anioTributario} · TC ${config.tipoCambio.toLocaleString("es-CL")} CLP/USD
             </p>
           </div>
           <div style={{ textAlign: "right" }}>
-            <p style={{ fontSize: 11, color: "#444", fontFamily: "'DM Mono', monospace" }}>
-              Actualizado
-            </p>
-            <p style={{ fontSize: 12, color: "#666", fontFamily: "'DM Mono', monospace" }}>
-              {lastUpdated}
-            </p>
+            <p style={{ fontSize: 11, color: "#444", fontFamily: "'DM Mono', monospace", margin: 0 }}>Actualizado</p>
+            <p style={{ fontSize: 12, color: "#666", fontFamily: "'DM Mono', monospace", margin: 0 }}>{lastUpdated}</p>
           </div>
         </header>
 
-        <main style={{ padding: "32px 40px", maxWidth: 1280, margin: "0 auto" }}>
+        <main className="main-pad" style={{ maxWidth: 1280, margin: "0 auto" }}>
 
-          {/* ── KPIs ── */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12, marginBottom: 40 }}>
+          {/* KPIs */}
+          <div className="grid-kpi">
             <StatCard label="Ingresos totales" value={soloIngresos} color="green" />
             <StatCard label="Gastos totales"   value={soloGastos}   color="red" />
             <StatCard label="Utilidad neta"    value={utilidadNeta}  color={utilidadNeta >= 0 ? "green" : "red"} />
@@ -103,29 +114,25 @@ export default function Dashboard({ resumen, movimientos, config, saldos, lastUp
             <StatCard label="Saldo Wise"       value={saldoWise}     color="default" sub="cuenta inactiva" />
           </div>
 
-          {/* ── Ingresos vs Gastos ── */}
+          {/* Ingresos vs Gastos */}
           <div style={{ marginBottom: 40 }}>
             <SectionTitle>Ingresos vs Gastos por mes</SectionTitle>
-            <div style={{
-              background: "#111", border: "1px solid #1a1a1a", borderRadius: 12, padding: "24px 16px",
-            }}>
-              <ResponsiveContainer width="100%" height={260}>
+            <div style={{ background: "#111", border: "1px solid #1a1a1a", borderRadius: 12, padding: "24px 16px" }}>
+              <ResponsiveContainer width="100%" height={240}>
                 <BarChart data={resumen} barGap={4}>
                   <XAxis dataKey="mes" tick={{ fill: "#555", fontSize: 11, fontFamily: "'DM Mono'" }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fill: "#555", fontSize: 11, fontFamily: "'DM Mono'" }} axisLine={false} tickLine={false} tickFormatter={v => `$${v.toLocaleString()}`} />
+                  <YAxis tick={{ fill: "#555", fontSize: 11, fontFamily: "'DM Mono'" }} axisLine={false} tickLine={false} tickFormatter={v => `$${v.toLocaleString()}`} width={60} />
                   <Tooltip content={<CustomTooltip />} />
                   <Legend wrapperStyle={{ fontSize: 11, fontFamily: "'DM Mono'", color: "#666" }} />
-                  <Bar dataKey="ingresos"    name="Ingresos"    fill="#4ade80" radius={[4,4,0,0]} maxBarSize={32} />
-                  <Bar dataKey="totalGastos" name="Gastos"      fill="#f87171" radius={[4,4,0,0]} maxBarSize={32} />
+                  <Bar dataKey="ingresos"    name="Ingresos" fill="#4ade80" radius={[4,4,0,0]} maxBarSize={28} />
+                  <Bar dataKey="totalGastos" name="Gastos"   fill="#f87171" radius={[4,4,0,0]} maxBarSize={28} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
           </div>
 
-          {/* ── Desglose gastos + Utilidad acumulada ── */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 40 }}>
-
-            {/* Pie */}
+          {/* Desglose gastos + Utilidad acumulada */}
+          <div className="grid-charts">
             <div>
               <SectionTitle>Desglose de gastos</SectionTitle>
               <div style={{ background: "#111", border: "1px solid #1a1a1a", borderRadius: 12, padding: "24px 16px" }}>
@@ -134,13 +141,11 @@ export default function Dashboard({ resumen, movimientos, config, saldos, lastUp
                     Sin gastos registrados aún
                   </p>
                 ) : (
-                  <ResponsiveContainer width="100%" height={240}>
+                  <ResponsiveContainer width="100%" height={220}>
                     <PieChart>
-                      <Pie data={pieData} cx="50%" cy="50%" innerRadius={60} outerRadius={95}
+                      <Pie data={pieData} cx="50%" cy="50%" innerRadius={55} outerRadius={85}
                         dataKey="value" nameKey="name" paddingAngle={3}>
-                        {pieData.map((entry, i) => (
-                          <Cell key={i} fill={entry.color} stroke="transparent" />
-                        ))}
+                        {pieData.map((entry, i) => <Cell key={i} fill={entry.color} stroke="transparent" />)}
                       </Pie>
                       <Tooltip content={<CustomTooltip />} />
                       <Legend wrapperStyle={{ fontSize: 11, fontFamily: "'DM Mono'", color: "#666" }} />
@@ -150,14 +155,13 @@ export default function Dashboard({ resumen, movimientos, config, saldos, lastUp
               </div>
             </div>
 
-            {/* Line acumulada */}
             <div>
               <SectionTitle>Utilidad neta acumulada</SectionTitle>
               <div style={{ background: "#111", border: "1px solid #1a1a1a", borderRadius: 12, padding: "24px 16px" }}>
-                <ResponsiveContainer width="100%" height={240}>
+                <ResponsiveContainer width="100%" height={220}>
                   <LineChart data={utilidadAcumulada}>
                     <XAxis dataKey="mes" tick={{ fill: "#555", fontSize: 11, fontFamily: "'DM Mono'" }} axisLine={false} tickLine={false} />
-                    <YAxis tick={{ fill: "#555", fontSize: 11, fontFamily: "'DM Mono'" }} axisLine={false} tickLine={false} tickFormatter={v => `$${v.toLocaleString()}`} />
+                    <YAxis tick={{ fill: "#555", fontSize: 11, fontFamily: "'DM Mono'" }} axisLine={false} tickLine={false} tickFormatter={v => `$${v.toLocaleString()}`} width={60} />
                     <Tooltip content={<CustomTooltip />} />
                     <Line type="monotone" dataKey="acumulado" name="Utilidad acumulada"
                       stroke="#4ade80" strokeWidth={2} dot={{ fill: "#4ade80", r: 3 }} activeDot={{ r: 5 }} />
@@ -165,10 +169,74 @@ export default function Dashboard({ resumen, movimientos, config, saldos, lastUp
                 </ResponsiveContainer>
               </div>
             </div>
-
           </div>
 
-          {/* ── Últimos movimientos ── */}
+          {/* Ingresos por agencia */}
+          <div className="grid-agencias">
+            <div>
+              <SectionTitle>Ingresos por agencia</SectionTitle>
+              <div style={{ background: "#111", border: "1px solid #1a1a1a", borderRadius: 12, padding: "24px 16px" }}>
+                {agencias.length === 0 ? (
+                  <p style={{ color: "#444", fontSize: 13, textAlign: "center", padding: "60px 0", fontFamily: "'DM Mono'" }}>
+                    Sin ingresos por agencia aún
+                  </p>
+                ) : (
+                  <ResponsiveContainer width="100%" height={220}>
+                    <PieChart>
+                      <Pie data={agencias} cx="50%" cy="50%" innerRadius={55} outerRadius={85}
+                        dataKey="value" nameKey="name" paddingAngle={3}>
+                        {agencias.map((entry, i) => <Cell key={i} fill={entry.color} stroke="transparent" />)}
+                      </Pie>
+                      <Tooltip content={<CustomTooltip />} />
+                      <Legend wrapperStyle={{ fontSize: 11, fontFamily: "'DM Mono'", color: "#666" }} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                )}
+              </div>
+            </div>
+
+            {/* Tabla resumen agencias */}
+            <div>
+              <SectionTitle>Detalle por agencia</SectionTitle>
+              <div style={{ background: "#111", border: "1px solid #1a1a1a", borderRadius: 12, overflow: "hidden" }}>
+                {agencias.length === 0 ? (
+                  <p style={{ color: "#444", fontSize: 13, textAlign: "center", padding: "60px 20px", fontFamily: "'DM Mono'" }}>
+                    Se mostrará cuando entren pagos de agencias
+                  </p>
+                ) : (
+                  <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                    <thead>
+                      <tr style={{ borderBottom: "1px solid #1a1a1a" }}>
+                        {["Agencia", "Total USD", "% del total"].map(h => (
+                          <th key={h} style={{ padding: "12px 16px", textAlign: "left", fontSize: 10,
+                            letterSpacing: "0.12em", textTransform: "uppercase",
+                            color: "#444", fontFamily: "'DM Mono'", fontWeight: 400 }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {agencias.map((a, i) => {
+                        const total = agencias.reduce((s, x) => s + x.value, 0);
+                        const pct = total > 0 ? ((a.value / total) * 100).toFixed(1) : "0";
+                        return (
+                          <tr key={i} style={{ borderBottom: "1px solid #161616" }}>
+                            <td style={{ ...tdStyle, display: "flex", alignItems: "center", gap: 8 }}>
+                              <span style={{ width: 8, height: 8, borderRadius: "50%", background: a.color, display: "inline-block" }} />
+                              {a.name}
+                            </td>
+                            <td style={{ ...tdStyle, color: "#4ade80", fontFamily: "'DM Mono'" }}>{fmt(a.value)}</td>
+                            <td style={{ ...tdStyle, color: "#666", fontFamily: "'DM Mono'" }}>{pct}%</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Últimos movimientos */}
           <div>
             <SectionTitle>Últimos movimientos</SectionTitle>
             <div style={{ background: "#111", border: "1px solid #1a1a1a", borderRadius: 12, overflow: "hidden" }}>
@@ -177,47 +245,49 @@ export default function Dashboard({ resumen, movimientos, config, saldos, lastUp
                   Sin movimientos registrados aún
                 </p>
               ) : (
-                <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                  <thead>
-                    <tr style={{ borderBottom: "1px solid #1a1a1a" }}>
-                      {["Fecha","Tipo","Categoría","Monto USD","Cuenta","Descripción"].map(h => (
-                        <th key={h} style={{
-                          padding: "12px 16px", textAlign: "left", fontSize: 10,
-                          letterSpacing: "0.12em", textTransform: "uppercase",
-                          color: "#444", fontFamily: "'DM Mono'", fontWeight: 400,
-                        }}>{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {ultimos.map((m, i) => {
-                      const esPositivo = m.montoUSD >= 0;
-                      const colorTipo = m.tipo === "Ingreso" ? { bg: "#16391f", text: "#4ade80" }
-                        : m.tipo === "Transferencia" ? { bg: "#172038", text: "#60a5fa" }
-                        : { bg: "#3b1a1a", text: "#f87171" };
-                      return (
-                      <tr key={i} style={{ borderBottom: "1px solid #161616" }}>
-                        <td style={tdStyle}>{m.fecha}</td>
-                        <td style={tdStyle}>
-                          <span style={{
-                            fontSize: 10, padding: "2px 8px", borderRadius: 20, fontFamily: "'DM Mono'",
-                            background: colorTipo.bg, color: colorTipo.text,
-                          }}>
-                            {m.tipo}
-                          </span>
-                        </td>
-                        <td style={tdStyle}>{m.categoria}</td>
-                        <td style={{ ...tdStyle, color: esPositivo ? "#4ade80" : "#f87171", fontFamily: "'DM Mono'" }}>
-                          {esPositivo ? "+" : "-"}{fmt(Math.abs(m.montoUSD))}
-                        </td>
-                        <td style={{ ...tdStyle, color: "#888", fontFamily: "'DM Mono'", fontSize: 11 }}>{m.cuenta}</td>
-                        <td style={{ ...tdStyle, color: "#666", maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                          {m.descripcion}
-                        </td>
+                <div className="table-scroll">
+                  <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 500 }}>
+                    <thead>
+                      <tr style={{ borderBottom: "1px solid #1a1a1a" }}>
+                        {["Fecha","Tipo","Categoría","Monto USD","Cuenta","Descripción"].map(h => (
+                          <th key={h} style={{ padding: "12px 16px", textAlign: "left", fontSize: 10,
+                            letterSpacing: "0.12em", textTransform: "uppercase",
+                            color: "#444", fontFamily: "'DM Mono'", fontWeight: 400 }}>{h}</th>
+                        ))}
                       </tr>
-                    )})}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {ultimos.map((m, i) => {
+                        const esPositivo = m.montoUSD >= 0;
+                        const colorTipo = m.tipo === "Ingreso"
+                          ? { bg: "#16391f", text: "#4ade80" }
+                          : m.tipo === "Transferencia"
+                          ? { bg: "#172038", text: "#60a5fa" }
+                          : { bg: "#3b1a1a", text: "#f87171" };
+                        return (
+                          <tr key={i} style={{ borderBottom: "1px solid #161616" }}>
+                            <td style={tdStyle}>{m.fecha}</td>
+                            <td style={tdStyle}>
+                              <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 20,
+                                fontFamily: "'DM Mono'", background: colorTipo.bg, color: colorTipo.text }}>
+                                {m.tipo}
+                              </span>
+                            </td>
+                            <td style={tdStyle}>{m.categoria}</td>
+                            <td style={{ ...tdStyle, color: esPositivo ? "#4ade80" : "#f87171", fontFamily: "'DM Mono'" }}>
+                              {esPositivo ? "+" : "-"}{fmt(Math.abs(m.montoUSD))}
+                            </td>
+                            <td style={{ ...tdStyle, color: "#888", fontFamily: "'DM Mono'", fontSize: 11 }}>{m.cuenta}</td>
+                            <td className="hide-mobile" style={{ ...tdStyle, color: "#666", maxWidth: 200,
+                              overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                              {m.descripcion}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               )}
             </div>
           </div>
@@ -237,19 +307,17 @@ const tdStyle = {
 
 export async function getServerSideProps() {
   try {
-    const [resumen, movimientos, config, saldos] = await Promise.all([
+    const [resumen, movimientos, config, saldos, agencias] = await Promise.all([
       getResumenMensual(),
       getMovimientos(),
       getConfig(),
       getSaldosPorCuenta(),
+      getIngresosPorAgencia(),
     ]);
 
     return {
       props: {
-        resumen,
-        movimientos,
-        config,
-        saldos,
+        resumen, movimientos, config, saldos, agencias,
         lastUpdated: new Date().toLocaleString("es-CL", {
           day: "2-digit", month: "2-digit", year: "numeric",
           hour: "2-digit", minute: "2-digit",
@@ -260,12 +328,10 @@ export async function getServerSideProps() {
     console.error("Error fetching sheets:", e.message);
     return {
       props: {
-        resumen: [],
-        movimientos: [],
+        resumen: [], movimientos: [],
         config: { tipoCambio: 940, empresa: "Ecom Warrior LLC", anioTributario: "AT 2026" },
-        saldos: {},
+        saldos: {}, agencias: [],
         lastUpdated: "—",
-        error: e.message,
       },
     };
   }
