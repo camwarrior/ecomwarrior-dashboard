@@ -404,7 +404,7 @@ export default function Dashboard({ movimientos, lastUpdated }) {
                           <td><span className="badge" style={{ color: TIPO_COLOR[m.tipo] || "#e8eaed", background: (TIPO_COLOR[m.tipo] || "#e8eaed") + "1a" }}>{m.tipo}</span></td>
                           <td>{m.descripcion}</td>
                           <td style={{ color: "var(--dim)" }}>{m.cuenta}</td>
-                          <td className="amt" style={{ color: m.tipo === "Gasto" ? "#ff6b6b" : "#34d399" }}>{fmt(m.montoUSD)}</td>
+                          <td className="amt" style={{ color: m.montoUSD < 0 ? "#ff6b6b" : "#34d399" }}>{fmt(m.montoUSD)}</td>
                         </tr>
                       ))}
                     </tbody>
