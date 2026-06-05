@@ -7,7 +7,7 @@ import {
 } from "recharts";
 import {
   Wallet, Building2, TrendingUp, Landmark, Receipt,
-  LayoutDashboard, ArrowLeftRight, PlusCircle, FileText
+  LayoutDashboard, ArrowLeftRight, PlusCircle, FileText, RefreshCw
 } from "lucide-react";
 import { getMovimientos } from "../lib/sheets";
 
@@ -72,6 +72,13 @@ export default function Dashboard({ movimientos, lastUpdated }) {
   const [enviando, setEnviando] = useState(false);
   const [msg, setMsg] = useState(null); // {ok, text}
   const setF = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  const [refrescando, setRefrescando] = useState(false);
+  async function refrescar() {
+    setRefrescando(true);
+    await router.replace(router.asPath, undefined, { scroll: false });
+    setRefrescando(false);
+  }
 
   const categoriasVistas = useMemo(() =>
     [...new Set(movimientos.map(m => m.categoria).filter(Boolean))].sort(), [movimientos]);
@@ -262,6 +269,12 @@ export default function Dashboard({ movimientos, lastUpdated }) {
           .pagehead .meta { margin-top:8px; display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-size:12.5px; color:var(--dim); }
           .pill { display:inline-flex; align-items:center; gap:6px; font-family:'DM Mono',monospace; font-size:11.5px; color:var(--dim); border:1px solid var(--border); border-radius:99px; padding:3px 10px; }
           .live { width:6px; height:6px; border-radius:99px; background:#34d399; box-shadow:0 0 7px #34d399; }
+          .refbtn { display:inline-flex; align-items:center; gap:6px; background:transparent; border:1px solid var(--border);
+            color:var(--dim); border-radius:99px; padding:3px 11px; font-size:11.5px; cursor:pointer; font-family:'DM Mono',monospace; transition:.16s; }
+          .refbtn:hover { color:var(--text); border-color:#34d399; }
+          .refbtn:disabled { opacity:.6; cursor:default; }
+          .spin { animation: spin .8s linear infinite; }
+          @keyframes spin { to { transform: rotate(360deg); } }
           .grid { display:grid; gap:14px; }
           .kpis { grid-template-columns:repeat(4,1fr); }
           .mid { grid-template-columns:1.9fr 1fr; }
@@ -349,6 +362,9 @@ export default function Dashboard({ movimientos, lastUpdated }) {
                 <div className="meta">
                   <span className="pill"><span className="live" />En vivo</span>
                   <span>Actualizado · {lastUpdated} (hora de Chile)</span>
+                  <button className="refbtn" onClick={refrescar} disabled={refrescando}>
+                    <RefreshCw size={12} className={refrescando ? "spin" : ""} />{refrescando ? "Actualizando…" : "Actualizar"}
+                  </button>
                 </div>
               </div>
 
@@ -486,6 +502,9 @@ export default function Dashboard({ movimientos, lastUpdated }) {
                 <div className="meta">
                   <span className="pill"><ArrowLeftRight size={12} />Entradas · Salidas · Saldo</span>
                   <span>Actualizado · {lastUpdated} (hora de Chile)</span>
+                  <button className="refbtn" onClick={refrescar} disabled={refrescando}>
+                    <RefreshCw size={12} className={refrescando ? "spin" : ""} />{refrescando ? "Actualizando…" : "Actualizar"}
+                  </button>
                 </div>
               </div>
 
