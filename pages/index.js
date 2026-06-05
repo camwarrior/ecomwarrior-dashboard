@@ -1,5 +1,6 @@
 import Head from "next/head";
 import { useState, useMemo } from "react";
+import { useRouter } from "next/router";
 import {
   AreaChart, Area, BarChart, Bar, ComposedChart, Line, XAxis, YAxis,
   CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell
@@ -62,6 +63,57 @@ export default function Dashboard({ movimientos, lastUpdated }) {
     return anos.includes(cy) ? cy : (anos[0] || cy);
   });
   const [vista, setVista] = useState("resumen");
+  const router = useRouter();
+
+  // ---- Formulario "Agregar transacción" ----
+  const formVacio = { fecha: "", tipo: "Ingreso", categoria: "", usd: "", cuenta: "Mercury", desc: "", agencia: "", notas: "", cuentaOrigen: "Mercury", cuentaDestino: "Slash" };
+  const [form, setForm] = useState(formVacio);
+  const [archivo, setArchivo] = useState(null);
+  const [enviando, setEnviando] = useState(false);
+  const [msg, setMsg] = useState(null); // {ok, text}
+  const setF = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  const categoriasVistas = useMemo(() =>
+    [...new Set(movimientos.map(m => m.categoria).filter(Boolean))].sort(), [movimientos]);
+  const agenciasVistas = useMemo(() =>
+    [...new Set(movimientos.map(m => m.agencia).filter(Boolean))].sort(), [movimientos]);
+
+  async function enviarTransaccion() {
+    if (!form.fecha) { setMsg({ ok: false, text: "La fecha es obligatoria." }); return; }
+    setEnviando(true); setMsg(null);
+    const data = {
+      fecha: form.fecha, tipo: form.tipo, categoria: form.categoria,
+      usd: form.usd, cuenta: form.cuenta, desc: form.desc,
+      agencia: form.tipo === "Ingreso" ? form.agencia : "", notas: form.notas,
+      cuentaOrigen: form.cuentaOrigen, cuentaDestino: form.cuentaDestino,
+    };
+    try {
+      if (archivo) {
+        const bytes = await new Promise((res, rej) => {
+          const r = new FileReader();
+          r.onload = () => res(String(r.result).split(",")[1]);
+          r.onerror = rej;
+          r.readAsDataURL(archivo);
+        });
+        data.comprobante = { bytes, name: archivo.name, mime: archivo.type };
+      }
+      const resp = await fetch("/api/transaccion", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data),
+      });
+      const j = await resp.json();
+      if (j.ok) {
+        setMsg({ ok: true, text: "Transacción agregada correctamente." });
+        setForm(formVacio); setArchivo(null);
+        router.replace(router.asPath, undefined, { scroll: false });
+      } else {
+        setMsg({ ok: false, text: j.error || "No se pudo agregar." });
+      }
+    } catch (e) {
+      setMsg({ ok: false, text: "Error de conexión: " + (e.message || e) });
+    } finally {
+      setEnviando(false);
+    }
+  }
 
   const movsAno = useMemo(() => movimientos.filter(m => m.anio === ano), [movimientos, ano]);
   const movsHasta = useMemo(() => movimientos.filter(m => m.anio <= ano), [movimientos, ano]);
@@ -154,7 +206,7 @@ export default function Dashboard({ movimientos, lastUpdated }) {
   const NAV = [
     { id: "resumen", label: "Resumen", icon: LayoutDashboard },
     { id: "flujo", label: "Flujo de caja", icon: ArrowLeftRight },
-    { id: "agregar", label: "Agregar transacción", icon: PlusCircle, soon: true },
+    { id: "agregar", label: "Agregar transacción", icon: PlusCircle },
     { id: "renta", label: "Operación Renta", icon: FileText, soon: true },
   ];
 
@@ -243,6 +295,19 @@ export default function Dashboard({ movimientos, lastUpdated }) {
           .lg { display:flex; align-items:center; gap:9px; font-size:12.5px; }
           .lg .nm { color:var(--dim); } .lg .vl { margin-left:auto; font-family:'DM Mono',monospace; font-variant-numeric:tabular-nums; }
           .tablewrap { overflow-x:auto; -webkit-overflow-scrolling:touch; }
+          .field { margin-bottom:14px; }
+          .field label { display:block; font-size:11.5px; color:var(--dim); text-transform:uppercase; letter-spacing:0.06em; font-weight:600; margin-bottom:6px; }
+          .field input, .field select, .field textarea {
+            width:100%; background:#0d0f12; border:1px solid var(--border); border-radius:9px; padding:10px 12px;
+            color:var(--text); font-size:14px; font-family:inherit; outline:none; }
+          .field input:focus, .field select:focus, .field textarea:focus { border-color:#34d399; }
+          .field textarea { resize:vertical; min-height:54px; }
+          .row2 { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+          @media (max-width:560px){ .row2{grid-template-columns:1fr;} }
+          .btnsend { background:#34d399; color:#06120c; border:none; border-radius:10px; padding:12px 20px;
+            font-weight:700; font-size:14px; cursor:pointer; font-family:'Syne',sans-serif; transition:.16s; }
+          .btnsend:hover { background:#2bbf8a; } .btnsend:disabled { opacity:.5; cursor:default; }
+          .formmsg { padding:11px 14px; border-radius:9px; font-size:13px; margin-bottom:14px; }
           .stagger { opacity:0; transform:translateY(10px); animation:rise .5s cubic-bezier(.2,.7,.3,1) forwards; }
           @keyframes rise { to { opacity:1; transform:none; } }
         `}</style>
@@ -468,6 +533,103 @@ export default function Dashboard({ movimientos, lastUpdated }) {
                     </tbody>
                   </table>
                 </div>
+              </div>
+            </>
+          )}
+
+          {vista === "agregar" && (
+            <>
+              <div className="pagehead">
+                <h2>Agregar transacción</h2>
+                <div className="meta">
+                  <span className="pill"><PlusCircle size={12} />Se guarda en el Sheet y Drive</span>
+                  <span>Solo la fecha es obligatoria</span>
+                </div>
+              </div>
+
+              <div className="card pad stagger" style={{ maxWidth: 640 }}>
+                {msg && (
+                  <div className="formmsg" style={{ background: msg.ok ? "rgba(52,211,153,0.12)" : "rgba(255,107,107,0.12)", color: msg.ok ? "#34d399" : "#ff6b6b" }}>
+                    {msg.text}
+                  </div>
+                )}
+
+                <div className="row2">
+                  <div className="field">
+                    <label>Fecha *</label>
+                    <input type="date" value={form.fecha} onChange={e => setF("fecha", e.target.value)} />
+                  </div>
+                  <div className="field">
+                    <label>Tipo</label>
+                    <select value={form.tipo} onChange={e => setF("tipo", e.target.value)}>
+                      <option>Ingreso</option><option>Aporte</option><option>Gasto</option><option>Transferencia</option>
+                    </select>
+                  </div>
+                </div>
+
+                {form.tipo === "Transferencia" ? (
+                  <div className="row2">
+                    <div className="field">
+                      <label>Cuenta origen</label>
+                      <select value={form.cuentaOrigen} onChange={e => setF("cuentaOrigen", e.target.value)}>
+                        <option>Mercury</option><option>Slash</option><option>Wise</option>
+                      </select>
+                    </div>
+                    <div className="field">
+                      <label>Cuenta destino</label>
+                      <select value={form.cuentaDestino} onChange={e => setF("cuentaDestino", e.target.value)}>
+                        <option>Mercury</option><option>Slash</option><option>Wise</option>
+                      </select>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="row2">
+                    <div className="field">
+                      <label>Categoría</label>
+                      <input list="cats" value={form.categoria} onChange={e => setF("categoria", e.target.value)} placeholder="Ej: Meta Ads" />
+                      <datalist id="cats">{categoriasVistas.map(c => <option key={c} value={c} />)}</datalist>
+                    </div>
+                    <div className="field">
+                      <label>Cuenta</label>
+                      <select value={form.cuenta} onChange={e => setF("cuenta", e.target.value)}>
+                        <option>Mercury</option><option>Slash</option><option>Wise</option>
+                      </select>
+                    </div>
+                  </div>
+                )}
+
+                <div className="row2">
+                  <div className="field">
+                    <label>Monto USD</label>
+                    <input type="number" step="0.01" value={form.usd} onChange={e => setF("usd", e.target.value)} placeholder="Ej: 250" />
+                  </div>
+                  <div className="field">
+                    <label>Descripción</label>
+                    <input type="text" value={form.desc} onChange={e => setF("desc", e.target.value)} placeholder="Ej: Comisión junio" />
+                  </div>
+                </div>
+
+                {form.tipo === "Ingreso" && (
+                  <div className="field">
+                    <label>Agencia</label>
+                    <input list="ages" value={form.agencia} onChange={e => setF("agencia", e.target.value)} placeholder="Ej: Skalers Network" />
+                    <datalist id="ages">{agenciasVistas.map(a => <option key={a} value={a} />)}</datalist>
+                  </div>
+                )}
+
+                <div className="field">
+                  <label>Notas (opcional)</label>
+                  <textarea value={form.notas} onChange={e => setF("notas", e.target.value)} />
+                </div>
+
+                <div className="field">
+                  <label>Comprobante (opcional)</label>
+                  <input type="file" onChange={e => setArchivo(e.target.files[0] || null)} />
+                </div>
+
+                <button className="btnsend" onClick={enviarTransaccion} disabled={enviando}>
+                  {enviando ? "Guardando…" : "Agregar transacción"}
+                </button>
               </div>
             </>
           )}
