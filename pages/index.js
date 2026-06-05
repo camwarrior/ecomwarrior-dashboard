@@ -1,27 +1,55 @@
 import Head from "next/head";
 import { useState, useMemo } from "react";
 import {
-  BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
-  XAxis, YAxis, Tooltip, ResponsiveContainer, Legend
+  AreaChart, Area, BarChart, Bar, ComposedChart, Line, XAxis, YAxis,
+  CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell
 } from "recharts";
-import { getMovimientos, getResumenMensual } from "../lib/sheets";
-import StatCard from "../components/StatCard";
-import SectionTitle from "../components/SectionTitle";
+import {
+  Wallet, Building2, TrendingUp, Landmark, Receipt,
+  LayoutDashboard, ArrowLeftRight, PlusCircle, FileText
+} from "lucide-react";
+import { getMovimientos } from "../lib/sheets";
 
-const fmt = (n) => `$${Math.round(n).toLocaleString("en-US")}`;
 const MESES = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
-const COLORES_AGENCIA = ["#4ade80","#60a5fa","#fbbf24","#c084fc","#f87171","#34d399"];
+const PIE_COLORS = ["#ff6b6b", "#22d3ee", "#fbbf24", "#a78bfa", "#64748b"];
+const TIPO_COLOR = { Ingreso: "#34d399", Aporte: "#22d3ee", Gasto: "#ff6b6b", Transferencia: "#fbbf24" };
 
-const CustomTooltip = ({ active, payload, label }) => {
+const fmt = (n) => "$" + Math.round(n).toLocaleString("en-US");
+const fmtC = (n) => {
+  const a = Math.abs(n);
+  if (a >= 1e6) return "$" + (n / 1e6).toFixed(2) + "M";
+  if (a >= 1e3) return "$" + (n / 1e3).toFixed(1) + "K";
+  return "$" + Math.round(n);
+};
+
+function Tip({ active, payload, label }) {
   if (!active || !payload?.length) return null;
   return (
-    <div style={{ background: "#111", border: "1px solid #2e2e2e", borderRadius: 8,
-      padding: "10px 14px", fontFamily: "'DM Mono', monospace", fontSize: 12 }}>
-      <p style={{ color: "#888", marginBottom: 6 }}>{label}</p>
-      {payload.map((p, i) => <p key={i} style={{ color: p.color }}>{p.name}: {fmt(p.value)}</p>)}
+    <div style={{ background: "rgba(18,20,23,0.96)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 10, padding: "10px 12px", backdropFilter: "blur(8px)", fontFamily: "'DM Mono', monospace", fontSize: 12 }}>
+      {label != null && <div style={{ color: "#8a9099", marginBottom: 6 }}>{label}</div>}
+      {payload.map((p, i) => (
+        <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, color: "#e8eaed" }}>
+          <span style={{ width: 8, height: 8, borderRadius: 99, background: p.color || p.fill }} />
+          <span style={{ color: "#8a9099" }}>{p.name}:</span>
+          <span style={{ marginLeft: "auto", fontWeight: 500 }}>{fmt(p.value)}</span>
+        </div>
+      ))}
     </div>
   );
-};
+}
+
+function KPI({ label, value, sub, accent, icon: Icon, i }) {
+  return (
+    <div className="card stagger" style={{ animationDelay: `${i * 55}ms` }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <span className="klabel">{label}</span>
+        <span className="iconchip" style={{ color: accent }}><Icon size={15} /></span>
+      </div>
+      <div className="bignum" style={{ color: accent || "#e8eaed" }}>{value}</div>
+      <span className="ksub">{sub}</span>
+    </div>
+  );
+}
 
 export default function Dashboard({ movimientos, lastUpdated }) {
   const anos = useMemo(() => {
@@ -29,91 +57,94 @@ export default function Dashboard({ movimientos, lastUpdated }) {
     return [...set].sort((a, b) => b - a);
   }, [movimientos]);
 
-  const [anoSeleccionado, setAnoSeleccionado] = useState(new Date().getFullYear());
+  const [ano, setAno] = useState(() => {
+    const cy = new Date().getFullYear();
+    return anos.includes(cy) ? cy : (anos[0] || cy);
+  });
+  const [vista, setVista] = useState("resumen");
 
-  // Movimientos del año seleccionado (para P&L)
-  const movsFiltrados = useMemo(() =>
-    movimientos.filter(m => m.anio === anoSeleccionado),
-    [movimientos, anoSeleccionado]
-  );
+  const movsAno = useMemo(() => movimientos.filter(m => m.anio === ano), [movimientos, ano]);
+  const movsHasta = useMemo(() => movimientos.filter(m => m.anio <= ano), [movimientos, ano]);
 
-  // Movimientos hasta el año seleccionado (para saldos acumulados)
-  const movsHasta = useMemo(() =>
-    movimientos.filter(m => m.anio <= anoSeleccionado),
-    [movimientos, anoSeleccionado]
-  );
-
-  // P&L del año seleccionado
   const { ingresos, aportes, gastos } = useMemo(() => {
     let ingresos = 0, aportes = 0, gastos = 0;
-    movsFiltrados.forEach(m => {
-      if (m.tipo === "Ingreso")      ingresos += m.montoUSD;
-      else if (m.tipo === "Aporte")  aportes  += m.montoUSD;
-      else if (m.tipo === "Gasto")   gastos   += Math.abs(m.montoUSD);
+    movsAno.forEach(m => {
+      if (m.tipo === "Ingreso") ingresos += m.montoUSD;
+      else if (m.tipo === "Aporte") aportes += m.montoUSD;
+      else if (m.tipo === "Gasto") gastos += Math.abs(m.montoUSD);
     });
     return { ingresos, aportes, gastos };
-  }, [movsFiltrados]);
-
+  }, [movsAno]);
   const utilidadNeta = ingresos - gastos;
 
-  // Saldos acumulados hasta el año seleccionado
   const saldos = useMemo(() => {
     const s = {};
     movsHasta.forEach(m => {
       if (!s[m.cuenta]) s[m.cuenta] = 0;
       if (m.tipo === "Ingreso" || m.tipo === "Aporte") s[m.cuenta] += m.montoUSD;
-      else if (m.tipo === "Gasto")                     s[m.cuenta] -= Math.abs(m.montoUSD);
-      else if (m.tipo === "Transferencia")              s[m.cuenta] += m.montoUSD;
+      else if (m.tipo === "Gasto") s[m.cuenta] -= Math.abs(m.montoUSD);
+      else if (m.tipo === "Transferencia") s[m.cuenta] += m.montoUSD;
     });
     return s;
   }, [movsHasta]);
+  const cuentas = [
+    { name: "Mercury", saldo: saldos["Mercury"] || 0, color: "#34d399", desc: "Ingresos afiliados" },
+    { name: "Slash", saldo: saldos["Slash"] || 0, color: "#22d3ee", desc: "Gastos · cashback" },
+    { name: "Wise", saldo: saldos["Wise"] || 0, color: "#64748b", desc: "Inactiva" },
+  ];
+  const saldoTotal = cuentas.reduce((a, c) => a + c.saldo, 0);
 
-  const saldoMercury = saldos["Mercury"] || 0;
-  const saldoSlash   = saldos["Slash"]   || 0;
-  const saldoWise    = saldos["Wise"]    || 0;
-  const saldoTotal   = saldoMercury + saldoSlash + saldoWise;
-
-  // Resumen mensual calculado en cliente
-  const resumenMensual = useMemo(() => {
-    return MESES.map((mes, i) => {
-      const mesNum = i + 1;
-      const filasMes = movsFiltrados.filter(m => {
-        const partes = m.fecha.split("/");
-        return partes.length === 3 && parseInt(partes[1]) === mesNum;
-      });
-      const ing  = filasMes.filter(m => m.tipo === "Ingreso").reduce((s, m) => s + m.montoUSD, 0);
-      const gas  = filasMes.filter(m => m.tipo === "Gasto").reduce((s, m) => s + Math.abs(m.montoUSD), 0);
-      const metaAds    = filasMes.filter(m => m.categoria === "Meta Ads").reduce((s, m) => s + Math.abs(m.montoUSD), 0);
-      const softwareIA = filasMes.filter(m => m.categoria === "Software IA").reduce((s, m) => s + Math.abs(m.montoUSD), 0);
-      return { mes, ingresos: ing, totalGastos: gas, utilidad: ing - gas, metaAds, softwareIA };
+  const resumenMensual = useMemo(() => MESES.map((mes, i) => {
+    const mesNum = i + 1;
+    const filas = movsAno.filter(m => {
+      const p = m.fecha.split("/");
+      return p.length === 3 && parseInt(p[1]) === mesNum;
     });
-  }, [movsFiltrados]);
+    const ing = filas.filter(m => m.tipo === "Ingreso").reduce((s, m) => s + m.montoUSD, 0);
+    const gas = filas.filter(m => m.tipo === "Gasto").reduce((s, m) => s + Math.abs(m.montoUSD), 0);
+    const apo = filas.filter(m => m.tipo === "Aporte").reduce((s, m) => s + m.montoUSD, 0);
+    const metaAds = filas.filter(m => m.categoria === "Meta Ads").reduce((s, m) => s + Math.abs(m.montoUSD), 0);
+    const softwareIA = filas.filter(m => m.categoria === "Software IA").reduce((s, m) => s + Math.abs(m.montoUSD), 0);
+    return { mes, ingresos: ing, gastos: gas, aportes: apo, metaAds, softwareIA };
+  }), [movsAno]);
 
-  let acumulado = 0;
-  const utilidadAcumulada = resumenMensual.map(r => {
-    acumulado += r.utilidad;
-    return { mes: r.mes, acumulado };
+  const serieMensual = resumenMensual.filter(r => r.ingresos || r.gastos || r.aportes);
+
+  let ac = 0;
+  const utilidadAcumulada = serieMensual.map(r => { ac += r.ingresos - r.gastos; return { mes: r.mes, utilidad: ac }; });
+
+  let saldoAc = 0;
+  const flujo = serieMensual.map(r => {
+    const entradas = r.ingresos + r.aportes;
+    const salidas = r.gastos;
+    saldoAc += entradas - salidas;
+    return { mes: r.mes, entradas, salidas, neto: entradas - salidas, saldo: saldoAc };
   });
 
-  const totalMetaAds    = resumenMensual.reduce((s, r) => s + r.metaAds, 0);
+  const totalMetaAds = resumenMensual.reduce((s, r) => s + r.metaAds, 0);
   const totalSoftwareIA = resumenMensual.reduce((s, r) => s + r.softwareIA, 0);
   const pieData = [
-    { name: "Meta Ads",    value: totalMetaAds,    color: "#f87171" },
-    { name: "Software IA", value: totalSoftwareIA, color: "#60a5fa" },
-    { name: "Otros",       value: Math.max(0, gastos - totalMetaAds - totalSoftwareIA), color: "#fbbf24" },
+    { name: "Meta Ads", value: totalMetaAds },
+    { name: "Software IA", value: totalSoftwareIA },
+    { name: "Otros", value: Math.max(0, gastos - totalMetaAds - totalSoftwareIA) },
   ].filter(d => d.value > 0);
+  const totalGastosCat = pieData.reduce((a, b) => a + b.value, 0) || 1;
 
   const agencias = useMemo(() => {
-    const totales = {};
-    movsFiltrados.filter(m => m.tipo === "Ingreso" && m.agencia).forEach(m => {
-      totales[m.agencia] = (totales[m.agencia] || 0) + m.montoUSD;
-    });
-    return Object.entries(totales).map(([name, value], i) => ({
-      name, value, color: COLORES_AGENCIA[i % COLORES_AGENCIA.length]
-    }));
-  }, [movsFiltrados]);
+    const t = {};
+    movsAno.filter(m => m.tipo === "Ingreso" && m.agencia).forEach(m => { t[m.agencia] = (t[m.agencia] || 0) + m.montoUSD; });
+    return Object.entries(t).map(([name, value]) => ({ name, value }));
+  }, [movsAno]);
+  const totalAgencias = agencias.reduce((a, b) => a + b.value, 0) || 1;
 
-  const ultimos = [...movsFiltrados].reverse().slice(0, 8);
+  const ultimos = [...movsAno].reverse().slice(0, 8);
+
+  const NAV = [
+    { id: "resumen", label: "Resumen", icon: LayoutDashboard },
+    { id: "flujo", label: "Flujo de caja", icon: ArrowLeftRight },
+    { id: "agregar", label: "Agregar transacción", icon: PlusCircle, soon: true },
+    { id: "renta", label: "Operación Renta", icon: FileText, soon: true },
+  ];
 
   return (
     <>
@@ -123,238 +154,309 @@ export default function Dashboard({ movimientos, lastUpdated }) {
         <meta name="viewport" content="width=device-width, initial-scale=1" />
       </Head>
 
-      <style>{`
-        * { box-sizing: border-box; }
-        body { margin: 0; }
-        .grid-kpi  { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
-        .grid-kpi2 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 40px; }
-        .grid-2    { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 40px; }
-        .main-pad  { padding: 24px 40px; }
-        .hpad      { padding: 20px 40px; }
-        .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-        .ano-btn { background: transparent; border: 1px solid #2e2e2e; color: #888; padding: 6px 14px; border-radius: 6px; font-family: 'DM Mono', monospace; font-size: 12px; cursor: pointer; transition: all 0.15s; }
-        .ano-btn:hover { border-color: #555; color: #e8e8e8; }
-        .ano-btn.active { background: #e8e8e8; color: #0a0a0a; border-color: #e8e8e8; font-weight: 600; }
-        @media (max-width: 768px) {
-          .grid-kpi  { grid-template-columns: repeat(2, 1fr); }
-          .grid-kpi2 { grid-template-columns: repeat(2, 1fr); }
-          .grid-2    { grid-template-columns: 1fr; }
-          .main-pad  { padding: 16px; }
-          .hpad      { padding: 16px; }
-        }
-      `}</style>
+      <div className="root">
+        <style>{`
+          @import url('https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&display=swap');
+          * { box-sizing: border-box; }
+          body { margin: 0; }
+          .root {
+            --surface:#121417; --surface2:#16191d; --border:rgba(255,255,255,0.07);
+            --text:#e8eaed; --dim:#8a9099;
+            background:
+              radial-gradient(1100px 500px at 85% -10%, rgba(52,211,153,0.07), transparent 60%),
+              radial-gradient(900px 500px at 5% 0%, rgba(34,211,238,0.05), transparent 55%), #0a0b0d;
+            min-height:100vh; color:var(--text);
+            font-family:'Hanken Grotesk', ui-sans-serif, system-ui, sans-serif; display:flex;
+          }
+          .num { font-family:'DM Mono', monospace; font-variant-numeric:tabular-nums; }
+          .sidebar { width:236px; flex-shrink:0; border-right:1px solid var(--border); padding:24px 16px;
+            display:flex; flex-direction:column; gap:26px; position:sticky; top:0; align-self:flex-start; min-height:100vh; }
+          .brand { display:flex; align-items:center; gap:13px; padding:0 6px; }
+          .logo { width:42px; height:42px; border-radius:12px; display:grid; place-items:center; flex-shrink:0;
+            background:linear-gradient(135deg,#34d399,#0f9b6c); color:#06120c; box-shadow:0 6px 18px rgba(52,211,153,0.22); }
+          .brand h1 { font-family:'Syne',sans-serif; font-weight:800; font-size:18px; margin:0; line-height:1.15; letter-spacing:-0.01em; }
+          .brand p { margin:2px 0 0; font-size:11px; color:var(--dim); }
+          .navsec { font-size:10.5px; text-transform:uppercase; letter-spacing:0.09em; color:var(--dim); font-weight:600; padding:0 8px 10px; }
+          .nav { display:flex; flex-direction:column; gap:3px; }
+          .navitem { display:flex; align-items:center; gap:11px; padding:10px 12px; border-radius:10px; color:var(--dim);
+            font-size:13.5px; font-weight:500; cursor:pointer; border:none; background:transparent; width:100%; text-align:left; transition:.16s; }
+          .navitem:hover { color:var(--text); background:rgba(255,255,255,0.03); }
+          .navitem.on { color:var(--text); background:rgba(52,211,153,0.1); box-shadow:inset 2px 0 0 #34d399; }
+          .navitem.soon { opacity:.5; cursor:default; }
+          .soontag { margin-left:auto; font-size:9.5px; font-family:'DM Mono',monospace; color:var(--dim); border:1px solid var(--border); border-radius:99px; padding:1px 7px; }
+          .yrs { display:flex; flex-direction:column; gap:4px; }
+          .yr { display:flex; align-items:center; gap:9px; border:none; background:transparent; cursor:pointer; color:var(--dim);
+            font-family:'DM Mono',monospace; font-size:13px; padding:9px 12px; border-radius:9px; text-align:left; width:100%; transition:.16s; }
+          .yr:hover { color:var(--text); background:rgba(255,255,255,0.03); }
+          .yr.on { color:var(--text); background:var(--surface2); border:1px solid var(--border); }
+          .yrdot { width:7px; height:7px; border-radius:99px; background:#3a3f45; }
+          .yr.on .yrdot { background:#34d399; box-shadow:0 0 8px #34d399; }
+          .side-foot { margin-top:auto; padding:0 8px; font-size:10.5px; color:var(--dim); line-height:1.5; }
+          .main { flex:1; min-width:0; padding:30px clamp(18px,3vw,40px) 48px; }
+          .pagehead { margin-bottom:26px; }
+          .pagehead h2 { font-family:'Syne',sans-serif; font-weight:800; font-size:30px; margin:0; letter-spacing:-0.02em; line-height:1.1; }
+          .pagehead .meta { margin-top:8px; display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-size:12.5px; color:var(--dim); }
+          .pill { display:inline-flex; align-items:center; gap:6px; font-family:'DM Mono',monospace; font-size:11.5px; color:var(--dim); border:1px solid var(--border); border-radius:99px; padding:3px 10px; }
+          .live { width:6px; height:6px; border-radius:99px; background:#34d399; box-shadow:0 0 7px #34d399; }
+          .grid { display:grid; gap:14px; }
+          .kpis { grid-template-columns:repeat(4,1fr); }
+          .mid { grid-template-columns:1.9fr 1fr; }
+          .low { grid-template-columns:1.4fr 1fr; }
+          @media (max-width:1024px){ .kpis{grid-template-columns:repeat(2,1fr);} .mid,.low{grid-template-columns:1fr;} }
+          @media (max-width:760px){
+            .root{flex-direction:column;}
+            .sidebar{width:100%; min-height:0; flex-direction:row; flex-wrap:wrap; align-items:center; position:static; gap:14px; padding:16px;}
+            .navsec,.side-foot{display:none;} .nav{flex-direction:row; flex-wrap:wrap;} .yrs{flex-direction:row;}
+            .main{padding:20px 16px 40px;}
+          }
+          .card { background:linear-gradient(180deg,var(--surface2),var(--surface)); border:1px solid var(--border); border-radius:16px; padding:18px; }
+          .card.pad { padding:20px 22px; }
+          .klabel { font-size:11.5px; color:var(--dim); text-transform:uppercase; letter-spacing:0.08em; font-weight:600; }
+          .iconchip { width:28px; height:28px; border-radius:8px; display:grid; place-items:center; background:rgba(255,255,255,0.04); }
+          .bignum { font-family:'DM Mono',monospace; font-variant-numeric:tabular-nums; font-size:25px; font-weight:500; margin:12px 0 9px; letter-spacing:-0.02em; }
+          .ksub { font-size:11.5px; color:var(--dim); }
+          .ct { display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; }
+          .ct h3 { font-family:'Syne',sans-serif; font-size:15px; font-weight:700; margin:0; }
+          .ct span { font-size:11.5px; color:var(--dim); }
+          .acct { display:flex; align-items:center; gap:12px; padding:12px 0; border-bottom:1px solid var(--border); }
+          .acct:last-child { border-bottom:none; }
+          .acct .nm { font-weight:600; font-size:13.5px; } .acct .ds { font-size:11px; color:var(--dim); }
+          .acct .sd { margin-left:auto; font-family:'DM Mono',monospace; font-size:14px; font-variant-numeric:tabular-nums; }
+          table { width:100%; border-collapse:collapse; }
+          th { text-align:left; font-size:10.5px; text-transform:uppercase; letter-spacing:0.07em; color:var(--dim); font-weight:600; padding:0 8px 10px; }
+          td { padding:11px 8px; border-top:1px solid var(--border); font-size:13px; }
+          .badge { font-size:10.5px; font-weight:600; padding:3px 9px; border-radius:99px; }
+          .amt { font-family:'DM Mono',monospace; font-variant-numeric:tabular-nums; text-align:right; }
+          .legend { display:flex; flex-direction:column; gap:9px; margin-top:6px; }
+          .lg { display:flex; align-items:center; gap:9px; font-size:12.5px; }
+          .lg .nm { color:var(--dim); } .lg .vl { margin-left:auto; font-family:'DM Mono',monospace; font-variant-numeric:tabular-nums; }
+          .tablewrap { overflow-x:auto; -webkit-overflow-scrolling:touch; }
+          .stagger { opacity:0; transform:translateY(10px); animation:rise .5s cubic-bezier(.2,.7,.3,1) forwards; }
+          @keyframes rise { to { opacity:1; transform:none; } }
+        `}</style>
 
-      <div style={{ background: "#0a0a0a", minHeight: "100vh", color: "#e8e8e8" }}>
-
-        <header className="hpad" style={{
-          borderBottom: "1px solid #1a1a1a",
-          display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12,
-        }}>
+        <aside className="sidebar">
+          <div className="brand">
+            <div className="logo"><TrendingUp size={22} /></div>
+            <div><h1>Ecom<br/>Warrior LLC</h1><p>Panel financiero</p></div>
+          </div>
           <div>
-            <h1 style={{ fontSize: 18, fontWeight: 700, letterSpacing: "-0.02em", margin: 0 }}>Ecom Warrior LLC</h1>
-            <p style={{ fontSize: 12, color: "#555", fontFamily: "'DM Mono', monospace", marginTop: 2, marginBottom: 0 }}>
-              AT {anoSeleccionado + 1}
-            </p>
+            <div className="navsec">Módulos</div>
+            <nav className="nav">
+              {NAV.map(n => (
+                <button key={n.id} className={"navitem" + (vista === n.id ? " on" : "") + (n.soon ? " soon" : "")}
+                  onClick={() => !n.soon && setVista(n.id)}>
+                  <n.icon size={16} />{n.label}{n.soon && <span className="soontag">Pronto</span>}
+                </button>
+              ))}
+            </nav>
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            {anos.map(a => (
-              <button key={a} className={`ano-btn${a === anoSeleccionado ? " active" : ""}`}
-                onClick={() => setAnoSeleccionado(a)}>
-                {a}
-              </button>
-            ))}
-          </div>
-          <div style={{ textAlign: "right" }}>
-            <p style={{ fontSize: 11, color: "#444", fontFamily: "'DM Mono', monospace", margin: 0 }}>Actualizado</p>
-            <p style={{ fontSize: 12, color: "#666", fontFamily: "'DM Mono', monospace", margin: 0 }}>{lastUpdated}</p>
-          </div>
-        </header>
-
-        <main className="main-pad" style={{ maxWidth: 1280, margin: "0 auto" }}>
-
-          {/* KPIs P&L */}
-          <div className="grid-kpi">
-            <StatCard label="Ingresos reales" value={ingresos} color="green" sub="comisiones agencias" />
-            <StatCard label="Aportes capital"  value={aportes}  color="blue"  sub="no tributable" />
-            <StatCard label="Gastos totales"   value={gastos}   color="red" />
-            <StatCard label="Utilidad neta"    value={utilidadNeta} color={utilidadNeta >= 0 ? "green" : "red"} sub="ingresos − gastos" />
-          </div>
-
-          {/* KPIs Saldos hasta año seleccionado */}
-          <div className="grid-kpi2">
-            <StatCard label="Saldo Mercury" value={saldoMercury} color="blue" />
-            <StatCard label="Saldo Slash"   value={Math.abs(saldoSlash)} color="amber"
-              sub={saldoSlash < 0 ? "gastos acumulados" : "saldo positivo"} />
-            <StatCard label="Saldo Wise"    value={saldoWise} color="default" sub="cuenta inactiva" />
-            <StatCard label="Saldo total"   value={saldoTotal} color={saldoTotal >= 0 ? "green" : "red"} sub={`acumulado hasta ${anoSeleccionado}`} />
-          </div>
-
-          {/* Ingresos vs Gastos */}
-          <div style={{ marginBottom: 40 }}>
-            <SectionTitle>Ingresos vs Gastos — {anoSeleccionado}</SectionTitle>
-            <div style={{ background: "#111", border: "1px solid #1a1a1a", borderRadius: 12, padding: "24px 16px" }}>
-              <ResponsiveContainer width="100%" height={240}>
-                <BarChart data={resumenMensual} barGap={4}>
-                  <XAxis dataKey="mes" tick={{ fill: "#555", fontSize: 11, fontFamily: "'DM Mono'" }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fill: "#555", fontSize: 11, fontFamily: "'DM Mono'" }} axisLine={false} tickLine={false} tickFormatter={v => `$${v.toLocaleString()}`} width={60} />
-                  <Tooltip content={<CustomTooltip />} />
-                  <Legend wrapperStyle={{ fontSize: 11, fontFamily: "'DM Mono'", color: "#666" }} />
-                  <Bar dataKey="ingresos"    name="Ingresos" fill="#4ade80" radius={[4,4,0,0]} maxBarSize={28} />
-                  <Bar dataKey="totalGastos" name="Gastos"   fill="#f87171" radius={[4,4,0,0]} maxBarSize={28} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-
-          {/* Desglose + Utilidad acumulada */}
-          <div className="grid-2">
-            <div>
-              <SectionTitle>Desglose de gastos — {anoSeleccionado}</SectionTitle>
-              <div style={{ background: "#111", border: "1px solid #1a1a1a", borderRadius: 12, padding: "24px 16px" }}>
-                {pieData.length === 0 ? (
-                  <p style={{ color: "#444", fontSize: 13, textAlign: "center", padding: "60px 0", fontFamily: "'DM Mono'" }}>Sin gastos en {anoSeleccionado}</p>
-                ) : (
-                  <ResponsiveContainer width="100%" height={220}>
-                    <PieChart>
-                      <Pie data={pieData} cx="50%" cy="50%" innerRadius={55} outerRadius={85} dataKey="value" nameKey="name" paddingAngle={3}>
-                        {pieData.map((e, i) => <Cell key={i} fill={e.color} stroke="transparent" />)}
-                      </Pie>
-                      <Tooltip content={<CustomTooltip />} />
-                      <Legend wrapperStyle={{ fontSize: 11, fontFamily: "'DM Mono'", color: "#666" }} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                )}
-              </div>
-            </div>
-            <div>
-              <SectionTitle>Utilidad acumulada — {anoSeleccionado}</SectionTitle>
-              <div style={{ background: "#111", border: "1px solid #1a1a1a", borderRadius: 12, padding: "24px 16px" }}>
-                <ResponsiveContainer width="100%" height={220}>
-                  <LineChart data={utilidadAcumulada}>
-                    <XAxis dataKey="mes" tick={{ fill: "#555", fontSize: 11, fontFamily: "'DM Mono'" }} axisLine={false} tickLine={false} />
-                    <YAxis tick={{ fill: "#555", fontSize: 11, fontFamily: "'DM Mono'" }} axisLine={false} tickLine={false} tickFormatter={v => `$${v.toLocaleString()}`} width={60} />
-                    <Tooltip content={<CustomTooltip />} />
-                    <Line type="monotone" dataKey="acumulado" name="Utilidad acumulada" stroke="#4ade80" strokeWidth={2} dot={{ fill: "#4ade80", r: 3 }} activeDot={{ r: 5 }} />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-          </div>
-
-          {/* Agencias */}
-          <div className="grid-2">
-            <div>
-              <SectionTitle>Ingresos por agencia — {anoSeleccionado}</SectionTitle>
-              <div style={{ background: "#111", border: "1px solid #1a1a1a", borderRadius: 12, padding: "24px 16px" }}>
-                {agencias.length === 0 ? (
-                  <p style={{ color: "#444", fontSize: 13, textAlign: "center", padding: "60px 0", fontFamily: "'DM Mono'" }}>Sin ingresos por agencia en {anoSeleccionado}</p>
-                ) : (
-                  <ResponsiveContainer width="100%" height={220}>
-                    <PieChart>
-                      <Pie data={agencias} cx="50%" cy="50%" innerRadius={55} outerRadius={85} dataKey="value" nameKey="name" paddingAngle={3}>
-                        {agencias.map((e, i) => <Cell key={i} fill={e.color} stroke="transparent" />)}
-                      </Pie>
-                      <Tooltip content={<CustomTooltip />} />
-                      <Legend wrapperStyle={{ fontSize: 11, fontFamily: "'DM Mono'", color: "#666" }} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                )}
-              </div>
-            </div>
-            <div>
-              <SectionTitle>Detalle por agencia — {anoSeleccionado}</SectionTitle>
-              <div style={{ background: "#111", border: "1px solid #1a1a1a", borderRadius: 12, overflow: "hidden" }}>
-                {agencias.length === 0 ? (
-                  <p style={{ color: "#444", fontSize: 13, textAlign: "center", padding: "60px 20px", fontFamily: "'DM Mono'" }}>Se mostrará cuando entren pagos</p>
-                ) : (
-                  <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                    <thead>
-                      <tr style={{ borderBottom: "1px solid #1a1a1a" }}>
-                        {["Agencia","Total USD","% del total"].map(h => (
-                          <th key={h} style={{ padding: "12px 16px", textAlign: "left", fontSize: 10,
-                            letterSpacing: "0.12em", textTransform: "uppercase", color: "#444", fontFamily: "'DM Mono'", fontWeight: 400 }}>{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {agencias.map((a, i) => {
-                        const total = agencias.reduce((s, x) => s + x.value, 0);
-                        const pct = total > 0 ? ((a.value / total) * 100).toFixed(1) : "0";
-                        return (
-                          <tr key={i} style={{ borderBottom: "1px solid #161616" }}>
-                            <td style={{ ...tdStyle, display: "flex", alignItems: "center", gap: 8 }}>
-                              <span style={{ width: 8, height: 8, borderRadius: "50%", background: a.color, display: "inline-block" }} />
-                              {a.name}
-                            </td>
-                            <td style={{ ...tdStyle, color: "#4ade80", fontFamily: "'DM Mono'" }}>{fmt(a.value)}</td>
-                            <td style={{ ...tdStyle, color: "#666", fontFamily: "'DM Mono'" }}>{pct}%</td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Últimos movimientos */}
           <div>
-            <SectionTitle>Últimos movimientos — {anoSeleccionado}</SectionTitle>
-            <div style={{ background: "#111", border: "1px solid #1a1a1a", borderRadius: 12, overflow: "hidden" }}>
-              {ultimos.length === 0 ? (
-                <p style={{ color: "#444", fontSize: 13, textAlign: "center", padding: "40px 0", fontFamily: "'DM Mono'" }}>Sin movimientos en {anoSeleccionado}</p>
-              ) : (
-                <div className="table-wrap">
-                  <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 640 }}>
-                    <thead>
-                      <tr style={{ borderBottom: "1px solid #1a1a1a" }}>
-                        {["Fecha","Tipo","Categoría","Monto USD","Cuenta","Descripción"].map(h => (
-                          <th key={h} style={{ padding: "12px 16px", textAlign: "left", fontSize: 10,
-                            letterSpacing: "0.12em", textTransform: "uppercase", color: "#444", fontFamily: "'DM Mono'", fontWeight: 400 }}>{h}</th>
+            <div className="navsec">Año tributario</div>
+            <div className="yrs">
+              {anos.map(y => (
+                <button key={y} className={"yr" + (y === ano ? " on" : "")} onClick={() => setAno(y)}>
+                  <span className="yrdot" />{y}<span style={{ marginLeft: "auto", fontSize: 10, color: "var(--dim)" }}>AT {y + 1}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="side-foot">Ecom Warrior LLC · US<br/>Operación Renta · SII Chile</div>
+        </aside>
+
+        <main className="main">
+          {vista === "resumen" && (
+            <>
+              <div className="pagehead">
+                <h2>Resumen {ano}</h2>
+                <div className="meta">
+                  <span className="pill"><span className="live" />En vivo</span>
+                  <span>Actualizado · {lastUpdated} (hora de Chile)</span>
+                </div>
+              </div>
+
+              <div className="grid kpis" style={{ marginBottom: 14 }}>
+                <KPI i={0} label="Ingresos reales" value={fmt(ingresos)} sub="comisiones tributables" accent="#34d399" icon={TrendingUp} />
+                <KPI i={1} label="Aportes capital" value={fmt(aportes)} sub="no tributable" accent="#22d3ee" icon={Landmark} />
+                <KPI i={2} label="Gastos totales" value={fmt(gastos)} sub="operacionales" accent="#ff6b6b" icon={Receipt} />
+                <KPI i={3} label="Utilidad neta" value={fmt(utilidadNeta)} sub="ingresos − gastos" accent={utilidadNeta >= 0 ? "#e8eaed" : "#ff6b6b"} icon={Wallet} />
+              </div>
+
+              <div className="grid mid" style={{ marginBottom: 14 }}>
+                <div className="card pad stagger" style={{ animationDelay: "240ms" }}>
+                  <div className="ct"><h3>Utilidad neta acumulada</h3><span>USD · {ano}</span></div>
+                  <ResponsiveContainer width="100%" height={250}>
+                    <AreaChart data={utilidadAcumulada} margin={{ top: 10, right: 6, left: -8, bottom: 0 }}>
+                      <defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#34d399" stopOpacity={0.35} />
+                        <stop offset="100%" stopColor="#34d399" stopOpacity={0} />
+                      </linearGradient></defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+                      <XAxis dataKey="mes" tick={{ fill: "#8a9099", fontSize: 11, fontFamily: "DM Mono" }} axisLine={false} tickLine={false} />
+                      <YAxis tickFormatter={fmtC} tick={{ fill: "#8a9099", fontSize: 11, fontFamily: "DM Mono" }} axisLine={false} tickLine={false} width={52} />
+                      <Tooltip content={<Tip />} />
+                      <Area type="monotone" dataKey="utilidad" name="Utilidad" stroke="#34d399" strokeWidth={2.4} fill="url(#g)" dot={false} activeDot={{ r: 4, fill: "#34d399" }} />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+
+                <div className="card pad stagger" style={{ animationDelay: "300ms" }}>
+                  <div className="ct"><h3>Desglose de gastos</h3></div>
+                  <div style={{ position: "relative", height: 158 }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie data={pieData} dataKey="value" nameKey="name" innerRadius={52} outerRadius={74} paddingAngle={2} stroke="none">
+                          {pieData.map((e, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
+                        </Pie>
+                        <Tooltip content={<Tip />} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                    <div style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", pointerEvents: "none" }}>
+                      <div style={{ textAlign: "center" }}>
+                        <div style={{ fontSize: 10.5, color: "var(--dim)", textTransform: "uppercase", letterSpacing: "0.07em" }}>Total</div>
+                        <div className="num" style={{ fontSize: 16, fontWeight: 500 }}>{fmtC(gastos)}</div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="legend">
+                    {pieData.map((e, i) => (
+                      <div className="lg" key={i}>
+                        <span style={{ width: 9, height: 9, borderRadius: 99, background: PIE_COLORS[i % PIE_COLORS.length] }} />
+                        <span className="nm">{e.name}</span>
+                        <span className="vl">{Math.round((e.value / totalGastosCat) * 100)}%</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid low" style={{ marginBottom: 14 }}>
+                <div className="card pad stagger" style={{ animationDelay: "360ms" }}>
+                  <div className="ct"><h3>Ingresos vs Gastos</h3><span>por mes · USD</span></div>
+                  <ResponsiveContainer width="100%" height={230}>
+                    <BarChart data={serieMensual} margin={{ top: 10, right: 6, left: -8, bottom: 0 }} barGap={4}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+                      <XAxis dataKey="mes" tick={{ fill: "#8a9099", fontSize: 11, fontFamily: "DM Mono" }} axisLine={false} tickLine={false} />
+                      <YAxis tickFormatter={fmtC} tick={{ fill: "#8a9099", fontSize: 11, fontFamily: "DM Mono" }} axisLine={false} tickLine={false} width={52} />
+                      <Tooltip content={<Tip />} cursor={{ fill: "rgba(255,255,255,0.03)" }} />
+                      <Bar dataKey="ingresos" name="Ingresos" fill="#34d399" radius={[4, 4, 0, 0]} maxBarSize={18} />
+                      <Bar dataKey="gastos" name="Gastos" fill="#ff6b6b" radius={[4, 4, 0, 0]} maxBarSize={18} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+
+                <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                  <div className="card pad stagger" style={{ animationDelay: "420ms" }}>
+                    <div className="ct"><h3>Saldos por cuenta</h3><span className="num">{fmtC(saldoTotal)}</span></div>
+                    {cuentas.map(c => (
+                      <div className="acct" key={c.name}>
+                        <span style={{ width: 9, height: 9, borderRadius: 99, background: c.color }} />
+                        <div><div className="nm">{c.name}</div><div className="ds">{c.desc}</div></div>
+                        <span className="sd" style={{ color: c.saldo < 0 ? "#ff6b6b" : "var(--text)" }}>{fmt(c.saldo)}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="card pad stagger" style={{ animationDelay: "470ms" }}>
+                    <div className="ct"><h3>Ingresos por agencia</h3></div>
+                    {agencias.length === 0 ? (
+                      <p style={{ fontSize: 12, color: "var(--dim)", margin: "6px 0 0" }}>Sin ingresos por agencia este año.</p>
+                    ) : (
+                      <div className="legend">
+                        {agencias.map((a, i) => (
+                          <div key={a.name}>
+                            <div className="lg" style={{ marginBottom: 5 }}>
+                              <Building2 size={13} style={{ color: i ? "#22d3ee" : "#34d399" }} />
+                              <span style={{ color: "var(--text)" }}>{a.name}</span>
+                              <span className="vl">{Math.round((a.value / totalAgencias) * 100)}%</span>
+                            </div>
+                            <div style={{ height: 6, borderRadius: 99, background: "rgba(255,255,255,0.05)" }}>
+                              <div style={{ height: "100%", borderRadius: 99, width: `${(a.value / totalAgencias) * 100}%`, background: i ? "#22d3ee" : "#34d399" }} />
+                            </div>
+                          </div>
                         ))}
-                      </tr>
-                    </thead>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="card pad stagger" style={{ animationDelay: "520ms" }}>
+                <div className="ct"><h3>Últimos movimientos</h3><span>{ano}</span></div>
+                <div className="tablewrap">
+                  <table>
+                    <thead><tr><th>Fecha</th><th>Tipo</th><th>Descripción</th><th>Cuenta</th><th style={{ textAlign: "right" }}>USD</th></tr></thead>
                     <tbody>
-                      {ultimos.map((m, i) => {
-                        const esPositivo = m.montoUSD >= 0;
-                        const colorTipo =
-                          m.tipo === "Ingreso"       ? { bg: "#16391f", text: "#4ade80" } :
-                          m.tipo === "Aporte"        ? { bg: "#172038", text: "#60a5fa" } :
-                          m.tipo === "Transferencia" ? { bg: "#2d2009", text: "#fbbf24" } :
-                                                       { bg: "#3b1a1a", text: "#f87171" };
-                        return (
-                          <tr key={i} style={{ borderBottom: "1px solid #161616" }}>
-                            <td style={tdStyle}>{m.fecha}</td>
-                            <td style={tdStyle}>
-                              <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 20,
-                                fontFamily: "'DM Mono'", background: colorTipo.bg, color: colorTipo.text }}>
-                                {m.tipo}
-                              </span>
-                            </td>
-                            <td style={tdStyle}>{m.categoria}</td>
-                            <td style={{ ...tdStyle, color: esPositivo ? "#4ade80" : "#f87171", fontFamily: "'DM Mono'" }}>
-                              {esPositivo ? "+" : "-"}{fmt(Math.abs(m.montoUSD))}
-                            </td>
-                            <td style={{ ...tdStyle, color: "#888", fontFamily: "'DM Mono'", fontSize: 11 }}>{m.cuenta}</td>
-                            <td style={{ ...tdStyle, color: "#666", whiteSpace: "nowrap" }}>{m.descripcion}</td>
-                          </tr>
-                        );
-                      })}
+                      {ultimos.map((m, i) => (
+                        <tr key={i}>
+                          <td className="num" style={{ color: "var(--dim)" }}>{m.fecha}</td>
+                          <td><span className="badge" style={{ color: TIPO_COLOR[m.tipo] || "#e8eaed", background: (TIPO_COLOR[m.tipo] || "#e8eaed") + "1a" }}>{m.tipo}</span></td>
+                          <td>{m.descripcion}</td>
+                          <td style={{ color: "var(--dim)" }}>{m.cuenta}</td>
+                          <td className="amt" style={{ color: m.tipo === "Gasto" ? "#ff6b6b" : "#34d399" }}>{fmt(m.montoUSD)}</td>
+                        </tr>
+                      ))}
                     </tbody>
                   </table>
                 </div>
-              )}
-            </div>
-          </div>
+              </div>
+            </>
+          )}
 
+          {vista === "flujo" && (
+            <>
+              <div className="pagehead">
+                <h2>Flujo de caja {ano}</h2>
+                <div className="meta">
+                  <span className="pill"><ArrowLeftRight size={12} />Entradas · Salidas · Saldo</span>
+                  <span>Actualizado · {lastUpdated} (hora de Chile)</span>
+                </div>
+              </div>
+
+              <div className="card pad stagger" style={{ marginBottom: 14 }}>
+                <div className="ct"><h3>Movimiento mensual y saldo acumulado</h3><span>USD</span></div>
+                {flujo.length === 0 ? (
+                  <p style={{ fontSize: 13, color: "var(--dim)", margin: "10px 0" }}>Sin movimientos este año.</p>
+                ) : (
+                  <ResponsiveContainer width="100%" height={300}>
+                    <ComposedChart data={flujo} margin={{ top: 10, right: 6, left: -8, bottom: 0 }} barGap={4}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+                      <XAxis dataKey="mes" tick={{ fill: "#8a9099", fontSize: 11, fontFamily: "DM Mono" }} axisLine={false} tickLine={false} />
+                      <YAxis tickFormatter={fmtC} tick={{ fill: "#8a9099", fontSize: 11, fontFamily: "DM Mono" }} axisLine={false} tickLine={false} width={52} />
+                      <Tooltip content={<Tip />} cursor={{ fill: "rgba(255,255,255,0.03)" }} />
+                      <Bar dataKey="entradas" name="Entradas" fill="#34d399" radius={[4, 4, 0, 0]} maxBarSize={20} />
+                      <Bar dataKey="salidas" name="Salidas" fill="#ff6b6b" radius={[4, 4, 0, 0]} maxBarSize={20} />
+                      <Line type="monotone" dataKey="saldo" name="Saldo acum." stroke="#fbbf24" strokeWidth={2.4} dot={false} activeDot={{ r: 4, fill: "#fbbf24" }} />
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                )}
+              </div>
+
+              <div className="card pad stagger" style={{ animationDelay: "120ms" }}>
+                <div className="ct"><h3>Detalle mensual</h3></div>
+                <div className="tablewrap">
+                  <table>
+                    <thead><tr><th>Mes</th><th style={{ textAlign: "right" }}>Entradas</th><th style={{ textAlign: "right" }}>Salidas</th><th style={{ textAlign: "right" }}>Neto</th><th style={{ textAlign: "right" }}>Saldo acum.</th></tr></thead>
+                    <tbody>
+                      {flujo.map((f, i) => (
+                        <tr key={i}>
+                          <td className="num" style={{ color: "var(--dim)" }}>{f.mes}</td>
+                          <td className="amt" style={{ color: "#34d399" }}>{fmt(f.entradas)}</td>
+                          <td className="amt" style={{ color: "#ff6b6b" }}>{fmt(f.salidas)}</td>
+                          <td className="amt" style={{ color: f.neto >= 0 ? "var(--text)" : "#ff6b6b" }}>{fmt(f.neto)}</td>
+                          <td className="amt" style={{ fontWeight: 500 }}>{fmt(f.saldo)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </>
+          )}
         </main>
       </div>
     </>
   );
 }
-
-const tdStyle = { padding: "12px 16px", fontSize: 12, color: "#888", verticalAlign: "middle" };
 
 export async function getServerSideProps() {
   try {
@@ -363,6 +465,7 @@ export async function getServerSideProps() {
       props: {
         movimientos,
         lastUpdated: new Date().toLocaleString("es-CL", {
+          timeZone: "America/Santiago",
           day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit",
         }),
       },
