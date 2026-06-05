@@ -9,7 +9,7 @@ import {
   Wallet, Building2, TrendingUp, Landmark, Receipt,
   LayoutDashboard, ArrowLeftRight, PlusCircle, FileText, RefreshCw
 } from "lucide-react";
-import { getMovimientos, getCategorias } from "../lib/sheets";
+import { getMovimientos, getCategorias, getAgencias } from "../lib/sheets";
 
 const MESES = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
 const PIE_COLORS = ["#ff6b6b", "#22d3ee", "#fbbf24", "#a78bfa", "#64748b"];
@@ -52,7 +52,7 @@ function KPI({ label, value, sub, accent, icon: Icon, i }) {
   );
 }
 
-export default function Dashboard({ movimientos, lastUpdated, categorias = [] }) {
+export default function Dashboard({ movimientos, lastUpdated, categorias = [], agenciasLista = [] }) {
   const anos = useMemo(() => {
     const set = new Set(movimientos.map(m => m.anio).filter(Boolean));
     return [...set].sort((a, b) => b - a);
@@ -85,6 +85,7 @@ export default function Dashboard({ movimientos, lastUpdated, categorias = [] })
   const catOpciones = categorias.length ? categorias : categoriasVistas;
   const agenciasVistas = useMemo(() =>
     [...new Set(movimientos.map(m => m.agencia).filter(Boolean))].sort(), [movimientos]);
+  const ageOpciones = agenciasLista.length ? agenciasLista : agenciasVistas;
 
   async function enviarTransaccion() {
     if (!form.fecha) { setMsg({ ok: false, text: "La fecha es obligatoria." }); return; }
@@ -635,8 +636,10 @@ export default function Dashboard({ movimientos, lastUpdated, categorias = [] })
                 {form.tipo === "Ingreso" && (
                   <div className="field">
                     <label>Agencia</label>
-                    <input list="ages" value={form.agencia} onChange={e => setF("agencia", e.target.value)} placeholder="Ej: Skalers Network" />
-                    <datalist id="ages">{agenciasVistas.map(a => <option key={a} value={a} />)}</datalist>
+                    <select value={form.agencia} onChange={e => setF("agencia", e.target.value)}>
+                      <option value="">— Selecciona —</option>
+                      {ageOpciones.map(a => <option key={a} value={a}>{a}</option>)}
+                    </select>
                   </div>
                 )}
 
@@ -664,11 +667,12 @@ export default function Dashboard({ movimientos, lastUpdated, categorias = [] })
 
 export async function getServerSideProps() {
   try {
-    const [movimientos, categorias] = await Promise.all([getMovimientos(), getCategorias()]);
+    const [movimientos, categorias, agenciasLista] = await Promise.all([getMovimientos(), getCategorias(), getAgencias()]);
     return {
       props: {
         movimientos,
         categorias,
+        agenciasLista,
         lastUpdated: new Date().toLocaleString("es-CL", {
           timeZone: "America/Santiago",
           day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit",
@@ -677,6 +681,6 @@ export async function getServerSideProps() {
     };
   } catch (e) {
     console.error("Error:", e.message);
-    return { props: { movimientos: [], categorias: [], lastUpdated: "—" } };
+    return { props: { movimientos: [], categorias: [], agenciasLista: [], lastUpdated: "—" } };
   }
 }
