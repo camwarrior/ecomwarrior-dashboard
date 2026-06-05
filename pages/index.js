@@ -9,7 +9,7 @@ import {
   Wallet, Building2, TrendingUp, Landmark, Receipt,
   LayoutDashboard, ArrowLeftRight, PlusCircle, FileText, RefreshCw
 } from "lucide-react";
-import { getMovimientos } from "../lib/sheets";
+import { getMovimientos, getCategorias } from "../lib/sheets";
 
 const MESES = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
 const PIE_COLORS = ["#ff6b6b", "#22d3ee", "#fbbf24", "#a78bfa", "#64748b"];
@@ -52,7 +52,7 @@ function KPI({ label, value, sub, accent, icon: Icon, i }) {
   );
 }
 
-export default function Dashboard({ movimientos, lastUpdated }) {
+export default function Dashboard({ movimientos, lastUpdated, categorias = [] }) {
   const anos = useMemo(() => {
     const set = new Set(movimientos.map(m => m.anio).filter(Boolean));
     return [...set].sort((a, b) => b - a);
@@ -82,6 +82,7 @@ export default function Dashboard({ movimientos, lastUpdated }) {
 
   const categoriasVistas = useMemo(() =>
     [...new Set(movimientos.map(m => m.categoria).filter(Boolean))].sort(), [movimientos]);
+  const catOpciones = categorias.length ? categorias : categoriasVistas;
   const agenciasVistas = useMemo(() =>
     [...new Set(movimientos.map(m => m.agencia).filter(Boolean))].sort(), [movimientos]);
 
@@ -233,6 +234,7 @@ export default function Dashboard({ movimientos, lastUpdated }) {
           .root {
             --surface:#121417; --surface2:#16191d; --border:rgba(255,255,255,0.07);
             --text:#e8eaed; --dim:#8a9099;
+            color-scheme: dark;
             background:
               radial-gradient(1100px 500px at 85% -10%, rgba(52,211,153,0.07), transparent 60%),
               radial-gradient(900px 500px at 5% 0%, rgba(34,211,238,0.05), transparent 55%), #0a0b0d;
@@ -605,8 +607,10 @@ export default function Dashboard({ movimientos, lastUpdated }) {
                   <div className="row2">
                     <div className="field">
                       <label>Categoría</label>
-                      <input list="cats" value={form.categoria} onChange={e => setF("categoria", e.target.value)} placeholder="Ej: Meta Ads" />
-                      <datalist id="cats">{categoriasVistas.map(c => <option key={c} value={c} />)}</datalist>
+                      <select value={form.categoria} onChange={e => setF("categoria", e.target.value)}>
+                        <option value="">— Selecciona —</option>
+                        {catOpciones.map(c => <option key={c} value={c}>{c}</option>)}
+                      </select>
                     </div>
                     <div className="field">
                       <label>Cuenta</label>
@@ -660,10 +664,11 @@ export default function Dashboard({ movimientos, lastUpdated }) {
 
 export async function getServerSideProps() {
   try {
-    const movimientos = await getMovimientos();
+    const [movimientos, categorias] = await Promise.all([getMovimientos(), getCategorias()]);
     return {
       props: {
         movimientos,
+        categorias,
         lastUpdated: new Date().toLocaleString("es-CL", {
           timeZone: "America/Santiago",
           day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit",
@@ -672,6 +677,6 @@ export async function getServerSideProps() {
     };
   } catch (e) {
     console.error("Error:", e.message);
-    return { props: { movimientos: [], lastUpdated: "—" } };
+    return { props: { movimientos: [], categorias: [], lastUpdated: "—" } };
   }
 }
