@@ -94,6 +94,18 @@ export default function Dashboard({ movimientos, lastUpdated }) {
   ];
   const saldoTotal = cuentas.reduce((a, c) => a + c.saldo, 0);
 
+  // Saldo real al inicio del año seleccionado (cierre del año anterior)
+  const saldoInicial = useMemo(() => {
+    const s = {};
+    movimientos.filter(m => m.anio < ano).forEach(m => {
+      if (!s[m.cuenta]) s[m.cuenta] = 0;
+      if (m.tipo === "Ingreso" || m.tipo === "Aporte") s[m.cuenta] += m.montoUSD;
+      else if (m.tipo === "Gasto") s[m.cuenta] -= Math.abs(m.montoUSD);
+      else if (m.tipo === "Transferencia") s[m.cuenta] += m.montoUSD;
+    });
+    return Object.values(s).reduce((a, b) => a + b, 0);
+  }, [movimientos, ano]);
+
   const resumenMensual = useMemo(() => MESES.map((mes, i) => {
     const mesNum = i + 1;
     const filas = movsAno.filter(m => {
@@ -113,7 +125,7 @@ export default function Dashboard({ movimientos, lastUpdated }) {
   let ac = 0;
   const utilidadAcumulada = serieMensual.map(r => { ac += r.ingresos - r.gastos; return { mes: r.mes, utilidad: ac }; });
 
-  let saldoAc = 0;
+  let saldoAc = saldoInicial;
   const flujo = serieMensual.map(r => {
     const entradas = r.ingresos + r.aportes;
     const salidas = r.gastos;
@@ -437,6 +449,13 @@ export default function Dashboard({ movimientos, lastUpdated }) {
                   <table>
                     <thead><tr><th>Mes</th><th style={{ textAlign: "right" }}>Entradas</th><th style={{ textAlign: "right" }}>Salidas</th><th style={{ textAlign: "right" }}>Neto</th><th style={{ textAlign: "right" }}>Saldo acum.</th></tr></thead>
                     <tbody>
+                      <tr style={{ background: "rgba(255,255,255,0.02)" }}>
+                        <td className="num" style={{ color: "var(--dim)", fontStyle: "italic" }}>Saldo inicial</td>
+                        <td className="amt" style={{ color: "var(--dim)" }}>—</td>
+                        <td className="amt" style={{ color: "var(--dim)" }}>—</td>
+                        <td className="amt" style={{ color: "var(--dim)" }}>—</td>
+                        <td className="amt" style={{ fontWeight: 600, color: saldoInicial >= 0 ? "#34d399" : "#ff6b6b" }}>{fmt(saldoInicial)}</td>
+                      </tr>
                       {flujo.map((f, i) => (
                         <tr key={i}>
                           <td className="num" style={{ color: "var(--dim)" }}>{f.mes}</td>
