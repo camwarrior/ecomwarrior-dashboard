@@ -7,7 +7,7 @@ import {
 } from "recharts";
 import {
   Wallet, Building2, TrendingUp, Landmark, Receipt,
-  LayoutDashboard, ArrowLeftRight, PlusCircle, FileText, RefreshCw
+  LayoutDashboard, ArrowLeftRight, PlusCircle, FileText, RefreshCw, Menu
 } from "lucide-react";
 import { getMovimientos, getCategorias, getAgencias } from "../lib/sheets";
 
@@ -63,6 +63,7 @@ export default function Dashboard({ movimientos, lastUpdated, categorias = [], a
     return anos.includes(cy) ? cy : (anos[0] || cy);
   });
   const [vista, setVista] = useState("resumen");
+  const [menuAbierto, setMenuAbierto] = useState(false);
   const router = useRouter();
 
   // ---- Formulario "Agregar transacción" ----
@@ -283,14 +284,26 @@ export default function Dashboard({ movimientos, lastUpdated, categorias = [], a
           .mid { grid-template-columns:1.9fr 1fr; }
           .low { grid-template-columns:1.4fr 1fr; }
           @media (max-width:1024px){ .kpis{grid-template-columns:repeat(2,1fr);} .mid,.low{grid-template-columns:1fr;} }
+          .mobiletop { display:none; }
+          .backdrop { display:none; }
+          .hamb { background:transparent; border:1px solid var(--border); color:var(--text); border-radius:10px; width:40px; height:40px; display:grid; place-items:center; cursor:pointer; }
           @media (max-width:760px){
-            .root{flex-direction:column;}
-            .sidebar{width:100%; min-height:0; flex-direction:row; flex-wrap:wrap; align-items:center; position:static; gap:14px; padding:16px;}
-            .navsec,.side-foot{display:none;} .nav{flex-direction:row; flex-wrap:wrap;} .yrs{flex-direction:row;}
-            .main{padding:20px 16px 40px;}
+            .root{ display:block; }
+            .mobiletop{ display:flex; align-items:center; justify-content:space-between; gap:12px;
+              padding:12px 16px; border-bottom:1px solid var(--border); position:sticky; top:0; z-index:40;
+              background:rgba(10,11,13,0.9); backdrop-filter:blur(8px); }
+            .mobiletop .mt-brand{ display:flex; align-items:center; gap:10px; font-family:'Syne',sans-serif; font-weight:800; font-size:15px; }
+            .mobiletop .mt-logo{ width:30px; height:30px; border-radius:8px; display:grid; place-items:center; background:linear-gradient(135deg,#34d399,#0f9b6c); color:#06120c; }
+            .sidebar{ position:fixed; top:0; left:0; height:100dvh; width:262px; z-index:60; padding:22px 16px;
+              background:#0d0f12; transform:translateX(-102%); transition:transform .25s ease; box-shadow:0 0 40px rgba(0,0,0,.55);
+              flex-direction:column; align-items:stretch; gap:24px; }
+            .sidebar.open{ transform:translateX(0); }
+            .backdrop{ display:block; position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:55; }
+            .main{ padding:20px 16px 40px; }
           }
           .card { background:linear-gradient(180deg,var(--surface2),var(--surface)); border:1px solid var(--border); border-radius:16px; padding:18px; }
           .card.pad { padding:20px 22px; }
+          .field input[type=date] { -webkit-appearance:none; appearance:none; text-align:left; min-height:42px; line-height:1.2; }
           .klabel { font-size:11.5px; color:var(--dim); text-transform:uppercase; letter-spacing:0.08em; font-weight:600; }
           .iconchip { width:28px; height:28px; border-radius:8px; display:grid; place-items:center; background:rgba(255,255,255,0.04); }
           .bignum { font-family:'DM Mono',monospace; font-variant-numeric:tabular-nums; font-size:25px; font-weight:500; margin:12px 0 9px; letter-spacing:-0.02em; }
@@ -328,7 +341,13 @@ export default function Dashboard({ movimientos, lastUpdated, categorias = [], a
           @keyframes rise { to { opacity:1; transform:none; } }
         `}</style>
 
-        <aside className="sidebar">
+        <div className="mobiletop">
+          <div className="mt-brand"><span className="mt-logo"><TrendingUp size={17} /></span>Ecom Warrior LLC</div>
+          <button className="hamb" onClick={() => setMenuAbierto(true)} aria-label="Menú"><Menu size={20} /></button>
+        </div>
+        {menuAbierto && <div className="backdrop" onClick={() => setMenuAbierto(false)} />}
+
+        <aside className={"sidebar" + (menuAbierto ? " open" : "")}>
           <div className="brand">
             <div className="logo"><TrendingUp size={22} /></div>
             <div><h1>Ecom<br/>Warrior LLC</h1><p>Panel financiero</p></div>
@@ -338,7 +357,7 @@ export default function Dashboard({ movimientos, lastUpdated, categorias = [], a
             <nav className="nav">
               {NAV.map(n => (
                 <button key={n.id} className={"navitem" + (vista === n.id ? " on" : "") + (n.soon ? " soon" : "")}
-                  onClick={() => !n.soon && setVista(n.id)}>
+                  onClick={() => { if (!n.soon) { setVista(n.id); setMenuAbierto(false); } }}>
                   <n.icon size={16} />{n.label}{n.soon && <span className="soontag">Pronto</span>}
                 </button>
               ))}
@@ -348,7 +367,7 @@ export default function Dashboard({ movimientos, lastUpdated, categorias = [], a
             <div className="navsec">Año tributario</div>
             <div className="yrs">
               {anos.map(y => (
-                <button key={y} className={"yr" + (y === ano ? " on" : "")} onClick={() => setAno(y)}>
+                <button key={y} className={"yr" + (y === ano ? " on" : "")} onClick={() => { setAno(y); setMenuAbierto(false); }}>
                   <span className="yrdot" />{y}<span style={{ marginLeft: "auto", fontSize: 10, color: "var(--dim)" }}>AT {y + 1}</span>
                 </button>
               ))}
