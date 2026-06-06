@@ -553,14 +553,24 @@ export default function Dashboard({ movimientos, lastUpdated, categorias = [], a
                 <div className="ct"><h3>Detalle mensual</h3></div>
                 <div className="tablewrap">
                   <table>
-                    <thead><tr><th>Mes</th><th style={{ textAlign: "right" }}>Entradas</th><th style={{ textAlign: "right" }}>Salidas</th><th style={{ textAlign: "right" }}>Neto</th><th style={{ textAlign: "right" }}>Saldo acum.</th></tr></thead>
+                    <thead><tr><th>Período</th><th style={{ textAlign: "right" }}>Entradas</th><th style={{ textAlign: "right" }}>Salidas</th><th style={{ textAlign: "right" }}>Neto</th><th style={{ textAlign: "right" }}>Saldo acum.</th></tr></thead>
                     <tbody>
-                      <tr style={{ background: "rgba(255,255,255,0.02)" }}>
-                        <td className="num" style={{ color: "var(--dim)", fontStyle: "italic" }}>Saldo inicial</td>
-                        <td className="amt" style={{ color: "var(--dim)" }}>—</td>
-                        <td className="amt" style={{ color: "var(--dim)" }}>—</td>
-                        <td className="amt" style={{ color: "var(--dim)" }}>—</td>
+                      <tr style={{ background: "rgba(52,211,153,0.06)" }}>
+                        <td style={{ padding: "13px 8px" }}>
+                          <span style={{ display: "inline-flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                            <span style={{ color: "#cdd2d8", fontStyle: "italic" }}>Saldo inicial</span>
+                            <span style={{ fontSize: 10.5, color: "#34d399", background: "rgba(52,211,153,0.14)", border: "1px solid rgba(52,211,153,0.3)", borderRadius: 99, padding: "2px 8px" }}>Apertura · cierre {ano - 1}</span>
+                          </span>
+                        </td>
+                        <td className="amt" style={{ color: "#5f636a" }}>—</td>
+                        <td className="amt" style={{ color: "#5f636a" }}>—</td>
+                        <td className="amt" style={{ color: "#5f636a" }}>—</td>
                         <td className="amt" style={{ fontWeight: 600, color: saldoInicial >= 0 ? "#34d399" : "#ff6b6b" }}>{fmt(saldoInicial)}</td>
+                      </tr>
+                      <tr>
+                        <td colSpan={5} style={{ padding: "14px 8px 6px", borderTop: "2px solid rgba(52,211,153,0.32)" }}>
+                          <span style={{ fontSize: 11, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--dim)", fontWeight: 600 }}>Movimientos {ano}</span>
+                        </td>
                       </tr>
                       {flujo.map((f, i) => (
                         <tr key={i}>
