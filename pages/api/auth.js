@@ -11,9 +11,12 @@ export default function handler(req, res) {
   }
 
   if (typeof password === "string" && password === correct) {
+    // SameSite=Lax: la cookie también viaja al abrir el panel desde un link
+    // (WhatsApp, Notas, correo). Strict la bloqueaba y forzaba un login extra.
+    // Las peticiones POST desde otros sitios siguen sin llevar la cookie.
     res.setHeader(
       "Set-Cookie",
-      `auth=${token}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=${60 * 60 * 24 * 30}`
+      `auth=${token}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${60 * 60 * 24 * 30}`
     );
     return res.status(200).json({ ok: true });
   }

@@ -2,15 +2,27 @@ import { NextResponse } from "next/server";
 
 export function middleware(req) {
   const { pathname } = req.nextUrl;
+  const token = req.cookies.get("auth")?.value;
+  const valido = !!token && !!process.env.AUTH_TOKEN && token === process.env.AUTH_TOKEN;
 
-  // Login y su API quedan abiertos
-  if (pathname === "/login" || pathname === "/api/auth") {
+  // La API de login queda abierta
+  if (pathname === "/api/auth") return NextResponse.next();
+
+  // Login: si la sesión sigue activa, entra directo al panel
+  if (pathname === "/login") {
+    if (valido) {
+      const url = req.nextUrl.clone();
+      url.pathname = "/";
+      return NextResponse.redirect(url);
+    }
     return NextResponse.next();
   }
 
-  // La cookie debe coincidir con el token secreto (no un "1" adivinable)
-  const token = req.cookies.get("auth")?.value;
-  if (!token || token !== process.env.AUTH_TOKEN) {
+  if (!valido) {
+    // Las rutas de API responden 401 en JSON (el panel redirige al login)
+    if (pathname.startsWith("/api/")) {
+      return NextResponse.json({ ok: false, error: "Sesión expirada" }, { status: 401 });
+    }
     const url = req.nextUrl.clone();
     url.pathname = "/login";
     return NextResponse.redirect(url);
@@ -20,5 +32,5 @@ export function middleware(req) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|icon.svg|apple-touch-icon.png).*)"],
 };
