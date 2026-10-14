@@ -231,6 +231,7 @@ a { color: var(--accent-text); }
 .ic-ingreso { background: var(--accent-soft); color: var(--accent-text); }
 .ic-aporte { background: var(--pos-soft); color: var(--pos); }
 .ic-trans { background: var(--line-soft); color: var(--muted); }
+.ic-retiro { background: var(--line-soft); color: var(--text); }
 .ew-empty { color: var(--muted); font-size: 14px; padding: 12px 0; }
 
 /* Filtros (chips) */
@@ -261,7 +262,7 @@ a { color: var(--accent-text); }
 .ew-formwrap { max-width: 600px; width: 100%; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; }
 .ew-formhead { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .ew-formhead h1 { margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.03em; }
-.ew-tipos { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); padding: 3px; background: var(--seg-bg); border-radius: 12px; }
+.ew-tipos { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); padding: 3px; background: var(--seg-bg); border-radius: 12px; }
 .ew-tipos button { border: none; background: transparent; color: var(--muted); font-size: 14px; font-weight: 500; min-height: 40px; border-radius: 9px; }
 .ew-tipos button.on { background: var(--seg-on); color: var(--text); font-weight: 600; box-shadow: var(--seg-shadow); }
 .ew-amount { text-align: center; padding: 10px 0 2px; }
@@ -429,6 +430,7 @@ a { color: var(--accent-text); }
   /* Agregar en móvil: pantalla completa con botón fijo abajo */
   .ew-main.agregar { padding-bottom: calc(96px + var(--safe-bottom)); }
   .ew-formhead h1 { font-size: 17px; letter-spacing: 0; }
+  .ew-tipos button { font-size: 13px; padding: 0 2px; }
   .ew-formhead { display: grid; grid-template-columns: 1fr auto 1fr; min-height: 44px; }
   .ew-formhead .cancel { justify-self: start; }
   .ew-savebar {

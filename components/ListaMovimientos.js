@@ -3,7 +3,7 @@ import { fmt2, fechaCorta } from "../lib/calculos";
 
 function montoTexto(m) {
   const a = Math.abs(m.montoUSD);
-  if (m.tipo === "Gasto") return { txt: "−" + fmt2(a), cls: "" };
+  if (m.tipo === "Gasto" || m.tipo === "Retiro") return { txt: "−" + fmt2(a), cls: "" };
   if (m.tipo === "Ingreso" || m.tipo === "Aporte") return { txt: "+" + fmt2(a), cls: "pos-text" };
   return { txt: fmt2(m.montoUSD), cls: "muted" };
 }

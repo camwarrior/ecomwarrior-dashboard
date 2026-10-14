@@ -1,8 +1,8 @@
 import { useMemo, useState } from "react";
 import ListaMovimientos from "./ListaMovimientos";
 
-const FILTROS = ["Todos", "Ingreso", "Aporte", "Gasto", "Transferencia"];
-const ETIQUETA = { Todos: "Todos", Ingreso: "Ingresos", Aporte: "Aportes", Gasto: "Gastos", Transferencia: "Transferencias" };
+const FILTROS = ["Todos", "Ingreso", "Aporte", "Gasto", "Retiro", "Transferencia"];
+const ETIQUETA = { Todos: "Todos", Ingreso: "Ingresos", Aporte: "Aportes", Gasto: "Gastos", Retiro: "Retiros", Transferencia: "Transferencias" };
 
 export default function VistaMovimientos({ c, ano }) {
   const [filtro, setFiltro] = useState("Todos");

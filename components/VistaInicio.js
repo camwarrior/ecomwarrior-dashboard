@@ -57,7 +57,7 @@ export default function VistaInicio({ c, ano, actualizado, refrescar, refrescand
 
       <section className="ew-strip" aria-label={`Resumen ${ano}`}>
         <div><div className="k">Ingresos</div><div className="v num">{fmt(c.ingresos)}</div><div className="s">Comisiones, tributan</div></div>
-        <div><div className="k">Aportes de capital</div><div className="v num">{fmt(c.aportes)}</div><div className="s">Tu dinero, no tributa</div></div>
+        <div><div className="k">Aportes de capital</div><div className="v num">{fmt(c.aportes)}</div><div className="s">{c.retiros > 0 ? `Retiros del socio: ${fmt(c.retiros)}` : "Tu dinero, no tributa"}</div></div>
         <div><div className="k">Gastos</div><div className="v num">{fmt(c.gastos)}</div>
           <div className="s">{principal ? `${pct(principal.value, c.totalDesglose)}% en ${principal.name}` : "Operacionales"}</div></div>
         <div><div className="k">Utilidad neta</div><div className={"v num " + (utilPos ? "pos-text" : "neg-text")}>{fmtSigno(c.utilidadNeta)}</div><div className="s">Ingresos menos gastos</div></div>

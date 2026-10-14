@@ -19,14 +19,16 @@ export const IAbajo = (p) => <Svg sw={2.2} {...p}><path d="m6 9 6 6 6-6" /></Svg
 export const IClip = (p) => <Svg {...p}><path d="m21 11-8.5 8.5a5 5 0 0 1-7-7L14 4a3.5 3.5 0 0 1 5 5l-8.5 8.5a2 2 0 0 1-3-3L15 7" /></Svg>;
 export const ISalida = (p) => <Svg sw={2} {...p}><path d="M7 7 17 17M16 17H7" /><path d="M17 8v9" /></Svg>;
 export const IEntrada = (p) => <Svg sw={2} {...p}><path d="M17 17 7 7M8 7h9v9" /></Svg>;
+export const IRetiro = (p) => <Svg sw={2} {...p}><path d="M12 5v14M5 12l7 7 7-7" /></Svg>;
 export const IAporte = (p) => <Svg sw={2} {...p}><path d="M12 5v14M5 12l7-7 7 7" /></Svg>;
 
 export function IconoTipo({ tipo, size = 16 }) {
   if (tipo === "Gasto") return <ISalida size={size} />;
   if (tipo === "Ingreso") return <IEntrada size={size} />;
   if (tipo === "Aporte") return <IAporte size={size} />;
+  if (tipo === "Retiro") return <IRetiro size={size} />;
   return <IFlujo size={size} sw={2} />;
 }
 
 export const claseTipo = (tipo) =>
-  tipo === "Gasto" ? "ic-gasto" : tipo === "Ingreso" ? "ic-ingreso" : tipo === "Aporte" ? "ic-aporte" : "ic-trans";
+  tipo === "Gasto" ? "ic-gasto" : tipo === "Ingreso" ? "ic-ingreso" : tipo === "Aporte" ? "ic-aporte" : tipo === "Retiro" ? "ic-retiro" : "ic-trans";

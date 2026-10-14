@@ -8,10 +8,12 @@ const TIPOS = [
   { v: "Ingreso", l: "Ingreso" },
   { v: "Aporte", l: "Aporte" },
   { v: "Gasto", l: "Gasto" },
+  { v: "Retiro", l: "Retiro" },
   { v: "Transferencia", l: "Transferir" },
 ];
 // Cuenta sugerida por tipo (se puede cambiar)
-const CUENTA_SUGERIDA = { Ingreso: "Mercury", Aporte: "Mercury", Gasto: "Slash" };
+const PLACEHOLDER_DESC = { Ingreso: "Ej: comisión junio", Aporte: "Ej: aporte de capital", Gasto: "Ej: campaña junio", Retiro: "Ej: retiro de utilidades" };
+const CUENTA_SUGERIDA = { Ingreso: "Mercury", Aporte: "Mercury", Gasto: "Slash", Retiro: "Mercury" };
 
 // Al cambiar de tipo: limpia la categoría si ya no corresponde y, si el tipo
 // tiene una sola categoría (p. ej. Aporte → Aporte socio), la deja elegida.
@@ -167,6 +169,10 @@ export default function VistaAgregar({ categorias, agencias, tc, tipoInicial, on
         <div className="clp num">{clp ? `≈ ${fmtCLP(clp)} CLP con el dólar de hoy` : ""}</div>
       </div>
 
+      {form.tipo === "Retiro" && (
+        <p className="ew-note" style={{ textAlign: "center", marginTop: -6 }}>Dinero que retiras de la empresa para ti. Baja el saldo de la cuenta, pero no es gasto: no reduce la utilidad.</p>
+      )}
+
       {msg && <div className={"ew-msg " + (msg.ok ? "ok" : "err")} role="alert">{msg.text}</div>}
 
       <div className="ew-group">
@@ -194,7 +200,7 @@ export default function VistaAgregar({ categorias, agencias, tc, tipoInicial, on
 
         <div className="ew-field">
           <label htmlFor="f-desc">Descripción</label>
-          <input id="f-desc" type="text" placeholder={form.tipo === "Gasto" ? "Ej: campaña junio" : "Ej: comisión junio"} value={form.desc} onChange={e => setF("desc", e.target.value)} />
+          <input id="f-desc" type="text" placeholder={PLACEHOLDER_DESC[form.tipo] || "Ej: comisión junio"} value={form.desc} onChange={e => setF("desc", e.target.value)} />
         </div>
         <div className="ew-field col">
           <label htmlFor="f-notas" style={{ fontSize: 14, color: "var(--muted)" }}>Notas (opcional)</label>

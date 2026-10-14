@@ -11,7 +11,7 @@ export default function VistaFlujo({ c, ano, paleta }) {
       <section className="ew-strip" aria-label={`Flujo ${ano}`}>
         <div><div className="k">Saldo inicial</div><div className="v num">{fmt(c.saldoInicial)}</div><div className="s">Cierre {ano - 1}</div></div>
         <div><div className="k">Entradas</div><div className="v num">{fmt(totEntradas)}</div><div className="s">Ingresos y aportes</div></div>
-        <div><div className="k">Salidas</div><div className="v num">{fmt(totSalidas)}</div><div className="s">Gastos</div></div>
+        <div><div className="k">Salidas</div><div className="v num">{fmt(totSalidas)}</div><div className="s">{c.retiros > 0 ? `Gastos y retiros (${fmt(c.retiros)})` : "Gastos"}</div></div>
         <div><div className="k">Saldo actual</div><div className={"v num" + (cierre < 0 ? " neg-text" : "")}>{fmt(cierre)}</div><div className="s">Transferencias internas excluidas</div></div>
       </section>
 
