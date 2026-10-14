@@ -88,9 +88,12 @@ export default function Dashboard() {
   const anoSel = ano ?? new Date().getFullYear();
   const c = useMemo(() => calcular(movimientos, anoSel), [movimientos, anoSel]);
 
+  // [{ nombre, tipo, cuenta }] desde la pestaña Categorías; si falta, se deduce de los movimientos
   const categorias = useMemo(() => {
     if (datos?.categorias?.length) return datos.categorias;
-    return [...new Set(movimientos.map(m => m.categoria).filter(Boolean))].sort();
+    const vistos = {};
+    movimientos.forEach(m => { if (m.categoria) vistos[m.categoria] = vistos[m.categoria] || new Set(); if (m.categoria) vistos[m.categoria].add(m.tipo); });
+    return Object.keys(vistos).sort().map(n => ({ nombre: n, tipo: [...vistos[n]].join("/"), cuenta: "" }));
   }, [datos, movimientos]);
   const agencias = useMemo(() => {
     if (datos?.agencias?.length) return datos.agencias;
@@ -161,7 +164,7 @@ export default function Dashboard() {
             </div>
           )}
 
-          {agregando ? (
+          {agregando ? (!datos ? <Esqueleto /> :
             <VistaAgregar categorias={categorias} agencias={agencias} tc={tc} tipoInicial={tipoInicial}
               onGuardado={alGuardar} onCancelar={() => irA("inicio")} />
           ) : error && !datos ? (

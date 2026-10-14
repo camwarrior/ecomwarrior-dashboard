@@ -26,7 +26,7 @@ const ICheck = () => (
 );
 
 // options: [{ v: "Meta Ads", l: "Meta Ads" }]
-export default function Selector({ id, label, value, onChange, options, placeholder = "Elegir" }) {
+export default function Selector({ id, label, value, onChange, options, placeholder = "Elegir", vacio = "Sin opciones. Agrégalas en el Google Sheet." }) {
   const tactil = usePunteroTactil();
   const [abierto, setAbierto] = useState(false);
   const [activo, setActivo] = useState(0);
@@ -83,7 +83,8 @@ export default function Selector({ id, label, value, onChange, options, placehol
       <div className="ew-field">
         <label htmlFor={id}>{label}</label>
         <select id={id} value={value} onChange={e => onChange(e.target.value)}>
-          {placeholder != null && !options.some(o => o.v === "") && <option value="" disabled={!!value}>{placeholder}</option>}
+          {!options.length && <option value="">{vacio}</option>}
+          {options.length > 0 && placeholder != null && !options.some(o => o.v === "") && <option value="" disabled={!!value}>{placeholder}</option>}
           {options.map(o => <option key={o.v} value={o.v}>{o.l}</option>)}
         </select>
         <IAbajo size={14} className="chev" />
@@ -113,7 +114,7 @@ export default function Selector({ id, label, value, onChange, options, placehol
               </button>
             );
           })}
-          {!options.length && <div className="ew-sel-empty">Sin opciones. Agrégalas en el Google Sheet.</div>}
+          {!options.length && <div className="ew-sel-empty">{vacio}</div>}
         </div>
       )}
     </div>

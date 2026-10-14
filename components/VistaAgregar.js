@@ -2,6 +2,7 @@ import { useState } from "react";
 import { IClip } from "./iconos";
 import Selector from "./Selector";
 import { hoyChile, fmtCLP } from "../lib/calculos";
+import { CUENTAS, categoriasPara, cuentaDeCategoria } from "../lib/categorias";
 
 const TIPOS = [
   { v: "Ingreso", l: "Ingreso" },
@@ -9,15 +10,26 @@ const TIPOS = [
   { v: "Gasto", l: "Gasto" },
   { v: "Transferencia", l: "Transferir" },
 ];
-const CUENTAS = ["Mercury", "Slash", "Wise"];
 // Cuenta sugerida por tipo (se puede cambiar)
 const CUENTA_SUGERIDA = { Ingreso: "Mercury", Aporte: "Mercury", Gasto: "Slash" };
 
-function formInicial(tipo = "Ingreso") {
-  return {
-    fecha: hoyChile(), tipo, categoria: "", usd: "", cuenta: CUENTA_SUGERIDA[tipo] || "Mercury",
+// Al cambiar de tipo: limpia la categoría si ya no corresponde y, si el tipo
+// tiene una sola categoría (p. ej. Aporte → Aporte socio), la deja elegida.
+function ajustarATipo(f, tipo, categorias) {
+  const validas = categoriasPara(tipo, categorias);
+  let categoria = validas.some(c => c.nombre === f.categoria) ? f.categoria : "";
+  if (!categoria && validas.length === 1) categoria = validas[0].nombre;
+  const cat = validas.find(c => c.nombre === categoria);
+  const cuenta = cuentaDeCategoria(cat) || CUENTA_SUGERIDA[tipo] || f.cuenta;
+  return { ...f, tipo, categoria, cuenta };
+}
+
+function formInicial(tipo = "Ingreso", categorias = []) {
+  const base = {
+    fecha: hoyChile(), tipo, categoria: "", usd: "", cuenta: "Mercury",
     desc: "", agencia: "", notas: "", cuentaOrigen: "Mercury", cuentaDestino: "Slash",
   };
+  return tipo === "Transferencia" ? base : ajustarATipo(base, tipo, categorias);
 }
 
 // Ancho del campo de monto ajustado al texto, para que el "$" quede pegado al número
@@ -32,7 +44,7 @@ const MIME_EXT = { "application/pdf": "pdf", "image/jpeg": "jpg", "image/png": "
 
 // Texto seguro para nombre de archivo: sin tildes, sin espacios ni símbolos
 function limpiar(t) {
-  return String(t || "").normalize("NFD").replace(/[̀-ͯ]/g, "")
+  return String(t || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "")
     .replace(/[^A-Za-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40);
 }
 
@@ -55,14 +67,23 @@ export function nombreComprobante(form, archivo) {
 }
 
 export default function VistaAgregar({ categorias, agencias, tc, tipoInicial, onGuardado, onCancelar }) {
-  const [form, setForm] = useState(() => formInicial(tipoInicial));
+  const [form, setForm] = useState(() => formInicial(tipoInicial, categorias));
   const [archivo, setArchivo] = useState(null);
   const [enviando, setEnviando] = useState(false);
   const [msg, setMsg] = useState(null);
   const setF = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
+  const catsDelTipo = categoriasPara(form.tipo, categorias);
+
   function cambiarTipo(tipo) {
-    setForm(f => ({ ...f, tipo, cuenta: CUENTA_SUGERIDA[tipo] || f.cuenta }));
+    setMsg(null);
+    setForm(f => (tipo === "Transferencia" ? { ...f, tipo } : ajustarATipo(f, tipo, categorias)));
+  }
+
+  // Elegir categoría sugiere su cuenta válida (Meta Ads → Slash), editable después
+  function cambiarCategoria(nombre) {
+    const cat = catsDelTipo.find(c => c.nombre === nombre);
+    setForm(f => ({ ...f, categoria: nombre, cuenta: cuentaDeCategoria(cat) || f.cuenta }));
   }
 
   const usdNum = parseFloat(String(form.usd).replace(",", "."));
@@ -74,6 +95,9 @@ export default function VistaAgregar({ categorias, agencias, tc, tipoInicial, on
     if (!form.fecha) { setMsg({ ok: false, text: "Falta la fecha del movimiento." }); return; }
     if (form.tipo === "Transferencia" && form.cuentaOrigen === form.cuentaDestino) {
       setMsg({ ok: false, text: "La cuenta de origen y la de destino deben ser distintas." }); return;
+    }
+    if (form.tipo !== "Transferencia" && form.categoria && !catsDelTipo.some(c => c.nombre === form.categoria)) {
+      setMsg({ ok: false, text: `La categoría "${form.categoria}" no corresponde a un ${form.tipo.toLowerCase()}. Elige otra.` }); return;
     }
     setEnviando(true); setMsg(null);
 
@@ -112,7 +136,7 @@ export default function VistaAgregar({ categorias, agencias, tc, tipoInicial, on
 
   const esTransf = form.tipo === "Transferencia";
   const opcCuentas = CUENTAS.map(x => ({ v: x, l: x }));
-  const opcCategorias = categorias.map(x => ({ v: x, l: x }));
+  const opcCategorias = catsDelTipo.map(c => ({ v: c.nombre, l: c.nombre }));
   const opcAgencias = agencias.map(x => ({ v: x, l: x }));
   const [inputKey, setInputKey] = useState(0);
   function quitarArchivo() { setArchivo(null); setInputKey(k => k + 1); }
@@ -158,7 +182,8 @@ export default function VistaAgregar({ categorias, agencias, tc, tipoInicial, on
           </>
         ) : (
           <>
-            <Selector id="f-cat" label="Categoría" value={form.categoria} onChange={v => setF("categoria", v)} options={opcCategorias} />
+            <Selector id="f-cat" label="Categoría" value={form.categoria} onChange={cambiarCategoria} options={opcCategorias}
+              vacio={`No hay categorías de tipo ${form.tipo} en la pestaña Categorías del Sheet.`} />
             <Selector id="f-cuenta" label="Cuenta" value={form.cuenta} onChange={v => setF("cuenta", v)} options={opcCuentas} />
           </>
         )}
