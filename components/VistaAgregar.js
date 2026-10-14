@@ -13,7 +13,7 @@ const TIPOS = [
 ];
 // Cuenta sugerida por tipo (se puede cambiar)
 const PLACEHOLDER_DESC = { Ingreso: "Ej: comisión junio", Aporte: "Ej: aporte de capital", Gasto: "Ej: campaña junio", Retiro: "Ej: retiro de utilidades" };
-const CUENTA_SUGERIDA = { Ingreso: "Mercury", Aporte: "Mercury", Gasto: "Slash", Retiro: "Mercury" };
+const CUENTA_SUGERIDA = { Ingreso: "Slash", Aporte: "Slash", Gasto: "Slash", Retiro: "Slash" };
 
 // Al cambiar de tipo: limpia la categoría si ya no corresponde y, si el tipo
 // tiene una sola categoría (p. ej. Aporte → Aporte socio), la deja elegida.
