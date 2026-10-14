@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { IClip, IAbajo } from "./iconos";
+import { IClip } from "./iconos";
+import Selector from "./Selector";
 import { hoyChile, fmtCLP } from "../lib/calculos";
 
 const TIPOS = [
@@ -27,14 +28,30 @@ function anchoMonto(v) {
   return `calc(${digitos}ch + ${separadores * 0.42}ch + 4px)`;
 }
 
-function Select({ id, label, value, onChange, children }) {
-  return (
-    <div className="ew-field">
-      <label htmlFor={id}>{label}</label>
-      <select id={id} value={value} onChange={e => onChange(e.target.value)}>{children}</select>
-      <IAbajo size={14} className="chev" />
-    </div>
-  );
+const MIME_EXT = { "application/pdf": "pdf", "image/jpeg": "jpg", "image/png": "png", "image/heic": "heic", "image/heif": "heif", "image/webp": "webp" };
+
+// Texto seguro para nombre de archivo: sin tildes, sin espacios ni símbolos
+function limpiar(t) {
+  return String(t || "").normalize("NFD").replace(/[̀-ͯ]/g, "")
+    .replace(/[^A-Za-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40);
+}
+
+// Nombre ordenable para Drive, p. ej. 2026-10-13_Gasto_Meta-Ads_USD-184.20_Slash.pdf
+export function nombreComprobante(form, archivo) {
+  const extOriginal = (archivo.name.match(/\.([A-Za-z0-9]{2,5})$/) || [])[1];
+  const ext = (extOriginal || MIME_EXT[archivo.type] || "bin").toLowerCase();
+  const usd = parseFloat(String(form.usd).replace(",", "."));
+  const monto = usd > 0 ? `USD-${usd.toFixed(2)}` : "";
+  let detalle, cuenta;
+  if (form.tipo === "Transferencia") {
+    detalle = `${form.cuentaOrigen}-a-${form.cuentaDestino}`;
+    cuenta = "";
+  } else {
+    detalle = (form.tipo === "Ingreso" && form.agencia) ? form.agencia : (form.categoria || form.desc || "");
+    cuenta = form.cuenta;
+  }
+  const partes = [form.fecha, form.tipo, limpiar(detalle), monto, limpiar(cuenta)].filter(Boolean);
+  return partes.join("_") + "." + ext;
 }
 
 export default function VistaAgregar({ categorias, agencias, tc, tipoInicial, onGuardado, onCancelar }) {
@@ -75,7 +92,7 @@ export default function VistaAgregar({ categorias, agencias, tc, tipoInicial, on
           r.onerror = rej;
           r.readAsDataURL(archivo);
         });
-        data.comprobante = { bytes, name: archivo.name, mime: archivo.type };
+        data.comprobante = { bytes, name: nombreComprobante(form, archivo), mime: archivo.type || "application/octet-stream" };
       }
       const resp = await fetch("/api/transaccion", {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data),
@@ -94,6 +111,11 @@ export default function VistaAgregar({ categorias, agencias, tc, tipoInicial, on
   }
 
   const esTransf = form.tipo === "Transferencia";
+  const opcCuentas = CUENTAS.map(x => ({ v: x, l: x }));
+  const opcCategorias = categorias.map(x => ({ v: x, l: x }));
+  const opcAgencias = agencias.map(x => ({ v: x, l: x }));
+  const [inputKey, setInputKey] = useState(0);
+  function quitarArchivo() { setArchivo(null); setInputKey(k => k + 1); }
 
   return (
     <form className="ew-formwrap" onSubmit={enviar} noValidate>
@@ -131,30 +153,18 @@ export default function VistaAgregar({ categorias, agencias, tc, tipoInicial, on
 
         {esTransf ? (
           <>
-            <Select id="f-origen" label="Desde" value={form.cuentaOrigen} onChange={v => setF("cuentaOrigen", v)}>
-              {CUENTAS.map(x => <option key={x}>{x}</option>)}
-            </Select>
-            <Select id="f-destino" label="Hacia" value={form.cuentaDestino} onChange={v => setF("cuentaDestino", v)}>
-              {CUENTAS.map(x => <option key={x}>{x}</option>)}
-            </Select>
+            <Selector id="f-origen" label="Desde" value={form.cuentaOrigen} onChange={v => setF("cuentaOrigen", v)} options={opcCuentas} />
+            <Selector id="f-destino" label="Hacia" value={form.cuentaDestino} onChange={v => setF("cuentaDestino", v)} options={opcCuentas} />
           </>
         ) : (
           <>
-            <Select id="f-cat" label="Categoría" value={form.categoria} onChange={v => setF("categoria", v)}>
-              <option value="">Elegir</option>
-              {categorias.map(x => <option key={x} value={x}>{x}</option>)}
-            </Select>
-            <Select id="f-cuenta" label="Cuenta" value={form.cuenta} onChange={v => setF("cuenta", v)}>
-              {CUENTAS.map(x => <option key={x}>{x}</option>)}
-            </Select>
+            <Selector id="f-cat" label="Categoría" value={form.categoria} onChange={v => setF("categoria", v)} options={opcCategorias} />
+            <Selector id="f-cuenta" label="Cuenta" value={form.cuenta} onChange={v => setF("cuenta", v)} options={opcCuentas} />
           </>
         )}
 
         {form.tipo === "Ingreso" && (
-          <Select id="f-agencia" label="Agencia" value={form.agencia} onChange={v => setF("agencia", v)}>
-            <option value="">Elegir</option>
-            {agencias.map(x => <option key={x} value={x}>{x}</option>)}
-          </Select>
+          <Selector id="f-agencia" label="Agencia" value={form.agencia} onChange={v => setF("agencia", v)} options={opcAgencias} />
         )}
 
         <div className="ew-field">
@@ -171,12 +181,16 @@ export default function VistaAgregar({ categorias, agencias, tc, tipoInicial, on
         <IClip size={20} />
         <span style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", minWidth: 0, textAlign: "left" }}>
           <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "100%" }}>{archivo ? archivo.name : "Adjuntar comprobante"}</span>
-          <span className="hint">{archivo ? "Se sube a Drive al guardar" : "Foto o PDF, opcional"}</span>
+          <span className="hint">{archivo ? "Se guarda en Drive con un nombre ordenado" : "Foto o PDF, opcional"}</span>
         </span>
-        <input id="f-comp" type="file" accept="image/*,application/pdf" onChange={e => setArchivo(e.target.files[0] || null)} />
+        <input key={inputKey} id="f-comp" type="file" accept="image/*,application/pdf" onChange={e => setArchivo(e.target.files[0] || null)} />
       </label>
       {archivo && (
-        <button type="button" className="ew-link" style={{ alignSelf: "center", marginTop: -8 }} onClick={() => setArchivo(null)}>Quitar comprobante</button>
+        <div className="ew-filename">
+          <span className="k">Nombre en Drive</span>
+          <span className="v">{nombreComprobante(form, archivo)}</span>
+          <button type="button" className="ew-link" onClick={quitarArchivo}>Quitar comprobante</button>
+        </div>
       )}
 
       <p className="ew-note">Se guarda en tu Google Sheet con el tipo de cambio del día, y el comprobante va a Drive en Comprobantes / año / mes.</p>
