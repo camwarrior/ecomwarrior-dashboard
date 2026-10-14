@@ -73,6 +73,7 @@ export default function VistaAgregar({ categorias, agencias, tc, tipoInicial, on
   const [archivo, setArchivo] = useState(null);
   const [enviando, setEnviando] = useState(false);
   const [msg, setMsg] = useState(null);
+  const [lento, setLento] = useState(false);
   const setF = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
   const catsDelTipo = categoriasPara(form.tipo, categorias);
@@ -101,7 +102,8 @@ export default function VistaAgregar({ categorias, agencias, tc, tipoInicial, on
     if (form.tipo !== "Transferencia" && form.categoria && !catsDelTipo.some(c => c.nombre === form.categoria)) {
       setMsg({ ok: false, text: `La categoría "${form.categoria}" no corresponde a un ${form.tipo.toLowerCase()}. Elige otra.` }); return;
     }
-    setEnviando(true); setMsg(null);
+    setEnviando(true); setMsg(null); setLento(false);
+    const avisoLento = setTimeout(() => setLento(true), 12000);
 
     // Mismo formato que espera la Web App de Apps Script
     const data = {
@@ -124,15 +126,21 @@ export default function VistaAgregar({ categorias, agencias, tc, tipoInicial, on
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data),
       });
       if (resp.status === 401) { window.location.href = "/login"; return; }
-      const j = await resp.json().catch(() => ({ ok: false }));
+      // Una respuesta que no es JSON suele ser un corte por tiempo del servidor
+      const j = await resp.json().catch(() => ({ ok: false, pendiente: true }));
       if (j.ok) {
+        clearTimeout(avisoLento);
         onGuardado();
         return;
       }
-      setMsg({ ok: false, text: j.error || "No se pudo guardar. Revisa los datos e intenta de nuevo." });
+      setMsg({ ok: false, text: j.error || (j.pendiente
+        ? "El servidor tardó demasiado en responder. Puede que el movimiento se guarde igual: revisa Movimientos en un minuto antes de enviarlo de nuevo."
+        : "No se pudo guardar. Revisa los datos e intenta de nuevo.") });
     } catch (err) {
-      setMsg({ ok: false, text: "Sin conexión con el servidor. Intenta de nuevo." });
+      setMsg({ ok: false, text: "Sin conexión con el servidor. Revisa Movimientos antes de intentar de nuevo." });
     }
+    clearTimeout(avisoLento);
+    setLento(false);
     setEnviando(false);
   }
 
@@ -225,6 +233,10 @@ export default function VistaAgregar({ categorias, agencias, tc, tipoInicial, on
       )}
 
       <p className="ew-note">Se guarda en tu Google Sheet con el tipo de cambio del día, y el comprobante va a Drive en Comprobantes / año / mes.</p>
+
+      {enviando && lento && (
+        <p className="ew-note" role="status" style={{ textAlign: "center" }}>Sigue guardando. Google puede tardar unos segundos con el comprobante y el tipo de cambio. No lo envíes de nuevo.</p>
+      )}
 
       <div className="ew-savebar">
         <button type="submit" className="ew-save" disabled={enviando}>{enviando ? "Guardando…" : "Guardar movimiento"}</button>
