@@ -16,6 +16,9 @@ export default function Document() {
         {/* Evita que iOS convierta montos en links de teléfono */}
         <meta name="format-detection" content="telephone=no" />
         <meta name="robots" content="noindex" />
+        {/* Conexión anticipada a Google Drive: el comprobante abre más rápido en la ficha */}
+        <link rel="preconnect" href="https://drive.google.com" />
+        <link rel="preconnect" href="https://lh3.googleusercontent.com" />
       </Head>
       <body>
         <Main />

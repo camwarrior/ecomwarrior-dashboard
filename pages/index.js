@@ -7,6 +7,7 @@ import VistaInicio from "../components/VistaInicio";
 import VistaFlujo from "../components/VistaFlujo";
 import VistaMovimientos from "../components/VistaMovimientos";
 import VistaAgregar from "../components/VistaAgregar";
+import FichaMovimiento from "../components/FichaMovimiento";
 
 const NAV = [
   { id: "inicio", label: "Inicio", corto: "Inicio", icon: IInicio },
@@ -55,6 +56,7 @@ export default function Dashboard() {
   const [toast, setToast] = useState("");
   const [editando, setEditando] = useState(null); // movimiento abierto para editar
   const [volverA, setVolverA] = useState("inicio");
+  const [ficha, setFicha] = useState(null); // movimiento abierto en la ficha de detalle
 
   const cargar = useCallback(async () => {
     setError("");
@@ -116,6 +118,7 @@ export default function Dashboard() {
   }
 
   function abrirEdicion(m) {
+    setFicha(null);
     setVolverA(vista);
     setEditando(m);
     setVista("editar");
@@ -194,10 +197,10 @@ export default function Dashboard() {
               {error && <div className="ew-msg err" role="alert">{error}</div>}
               {vista === "inicio" && (
                 <VistaInicio c={c} ano={anoSel} actualizado={datos.actualizado} refrescar={refrescar}
-                  refrescando={refrescando} paleta={paleta} irA={irA} onEditar={abrirEdicion} />
+                  refrescando={refrescando} paleta={paleta} irA={irA} onEditar={setFicha} />
               )}
               {vista === "flujo" && <VistaFlujo c={c} ano={anoSel} paleta={paleta} />}
-              {vista === "movimientos" && <VistaMovimientos c={c} ano={anoSel} onEditar={abrirEdicion} />}
+              {vista === "movimientos" && <VistaMovimientos c={c} ano={anoSel} onEditar={setFicha} />}
             </>
           )}
         </main>
@@ -219,6 +222,10 @@ export default function Dashboard() {
               </button>
             ))}
           </nav>
+        )}
+
+        {ficha && !agregando && (
+          <FichaMovimiento key={ficha.fila} m={ficha} onCerrar={() => setFicha(null)} onEditar={abrirEdicion} />
         )}
 
         {toast && <div className="ew-toast" role="status">{toast}</div>}
