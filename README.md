@@ -46,11 +46,14 @@ pages/
     tc.js             ← Dólar observado (Banco Central → mindicador)
     transaccion.js    ← Reenvía el formulario a Apps Script
 components/
-  VistaInicio.js, VistaFlujo.js, VistaMovimientos.js, VistaAgregar.js
+  VistaInicio.js, VistaFlujo.js, VistaMovimientos.js
+  VistaAgregar.js     ← Nuevo movimiento y edición
+  FichaMovimiento.js  ← Detalle del movimiento y vista del comprobante
   ListaMovimientos.js, Selector.js, graficos.js, iconos.js
 lib/
   calculos.js         ← Cálculos puros y formatos
   categorias.js       ← Reglas de categorías por tipo y cuentas
+  comprobante.js      ← URLs de vista previa de Drive y precarga
   sheets.js           ← Lectura de Google Sheets API
   useTema.js          ← Paleta de gráficos claro/oscuro
 middleware.js         ← Protección de rutas por cookie
