@@ -227,6 +227,11 @@ a { color: var(--accent-text); }
 .ew-mov .t1 { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ew-mov .t2 { font-size: 12.5px; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ew-mov .amt { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* Movimiento tocable (abre la edición) */
+.ew-mov.sel { width: 100%; background: none; border: none; border-bottom: 1px solid var(--line-soft); font: inherit; color: inherit; text-align: left; cursor: pointer; border-radius: 0; margin: 0; }
+.ew-mov.sel:last-child { border-bottom: none; }
+@media (hover: hover) { .ew-mov.sel:hover { background: var(--bg); box-shadow: -10px 0 0 var(--bg), 10px 0 0 var(--bg); } }
+.ew-mov.sel:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 8px; }
 .ic-gasto { background: var(--gasto-soft); color: var(--gasto-ink); }
 .ic-ingreso { background: var(--accent-soft); color: var(--accent-text); }
 .ic-aporte { background: var(--pos-soft); color: var(--pos); }
@@ -288,6 +293,8 @@ a { color: var(--accent-text); }
 .ew-field input[type="date"] { min-height: 52px; display: flex; justify-content: flex-end; }
 .ew-field input[type="date"]::-webkit-date-and-time-value { text-align: right; }
 .ew-field textarea { resize: vertical; min-height: 52px; text-align: left; }
+/* Campos bloqueados al editar una transferencia: legibles, sin aspecto de error */
+.ew-field input:disabled, .ew-amount input:disabled { color: var(--muted); -webkit-text-fill-color: var(--muted); opacity: 1; cursor: default; }
 .ew-field.col { flex-direction: column; align-items: stretch; gap: 4px; padding-top: 12px; }
 .ew-field.col textarea { padding: 4px 0 12px; }
 /* Selector propio (PC/Mac). En iPhone se usa el nativo. */
@@ -446,3 +453,75 @@ a { color: var(--accent-text); }
 }
 .ew-field input[type="date"]::-webkit-calendar-picker-indicator { opacity: 0.55; cursor: pointer; }
 .ew-field input[type="date"]::-webkit-calendar-picker-indicator:hover { opacity: 0.9; }
+
+/* ---------- Ficha de movimiento ---------- */
+.ew-ficha-fondo { position: fixed; inset: 0; z-index: 70; background: rgba(8, 10, 14, 0.42); animation: ew-fade 0.18s ease-out; }
+.ew-ficha {
+  position: fixed; z-index: 71; background: var(--surface); color: var(--text); outline: none;
+  overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
+  left: 0; right: 0; bottom: 0; max-height: 92dvh; border-radius: 22px 22px 0 0;
+  padding: 8px 20px calc(20px + var(--safe-bottom));
+  box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.18);
+  animation: ew-sube 0.24s cubic-bezier(0.2, 0.8, 0.2, 1);
+  will-change: transform;
+}
+.ew-ficha-asa { width: 38px; height: 5px; border-radius: 999px; background: var(--line); margin: 0 auto 10px; }
+.ew-ficha-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.ew-ficha-head .ic { width: 42px; height: 42px; border-radius: 12px; display: grid; place-items: center; }
+.ew-ficha-x { width: 40px; height: 40px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--muted); display: grid; place-items: center; cursor: pointer; }
+.ew-ficha-x:hover { color: var(--text); }
+.ew-ficha-titulo { font-size: 19px; font-weight: 600; letter-spacing: -0.01em; line-height: 1.3; margin: 0; overflow-wrap: anywhere; }
+.ew-ficha-monto { font-size: 32px; font-weight: 600; letter-spacing: -0.02em; margin: 6px 0 16px; }
+.ew-ficha-monto span { font-size: 14px; font-weight: 500; color: var(--dim); letter-spacing: 0; }
+.ew-ficha-datos { margin: 0 0 18px; border: 1px solid var(--line); border-radius: 14px; }
+.ew-ficha-datos > div { display: flex; justify-content: space-between; gap: 16px; padding: 9px 14px; border-bottom: 1px solid var(--line-soft); font-size: 14.5px; }
+.ew-ficha-datos > div:last-child { border-bottom: none; }
+.ew-ficha-datos dt { color: var(--muted); flex-shrink: 0; }
+.ew-ficha-datos dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.ew-ficha-sub { font-size: 13px; font-weight: 600; color: var(--muted); margin-bottom: 8px; }
+.ew-ficha-archivo { font-size: 12px; color: var(--dim); margin-top: 8px; overflow-wrap: anywhere; }
+.ew-ficha-vacio { font-size: 14px; color: var(--dim); border: 1px dashed var(--line); border-radius: 14px; padding: 16px; text-align: center; overflow-wrap: anywhere; }
+.ew-ficha-acciones { position: sticky; bottom: calc(-20px - var(--safe-bottom)); margin: 18px -20px calc(-20px - var(--safe-bottom)); padding: 12px 20px calc(16px + var(--safe-bottom)); background: linear-gradient(to bottom, transparent, var(--surface) 30%); }
+
+/* Vista previa del comprobante */
+.ew-comp { position: relative; display: block; width: 100%; border: 1px solid var(--line); border-radius: 14px; overflow: hidden; background: var(--bg); padding: 0; }
+.ew-comp.img { cursor: zoom-in; min-height: 160px; }
+.ew-comp.img img { display: block; width: 100%; height: auto; max-height: 62dvh; object-fit: contain; opacity: 0; transition: opacity 0.18s ease-out; }
+.ew-comp.img.listo { min-height: 0; }
+.ew-comp.img.listo img { opacity: 1; }
+.ew-comp-skel { position: absolute; inset: 0; border-radius: 0; }
+.ew-comp.pdf { height: min(62dvh, 560px); }
+.ew-comp.pdf iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; opacity: 0; transition: opacity 0.2s ease-out; background: transparent; }
+.ew-comp.pdf iframe.listo { opacity: 1; }
+.ew-comp-bajo { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; object-position: top center; }
+.ew-comp-cargando { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; }
+.spin-ring { width: 26px; height: 26px; border-radius: 999px; border: 2.5px solid var(--line); border-top-color: var(--muted); animation: ew-spin 0.8s linear infinite; }
+.ew-comp-ampliar { position: absolute; right: 10px; bottom: 10px; z-index: 2; border: 1px solid var(--line); background: var(--surface); color: var(--text); border-radius: 999px; padding: 0 14px; min-height: 36px; font-size: 13.5px; font-weight: 500; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12); cursor: pointer; }
+
+/* Comprobante a pantalla completa */
+.ew-amp { position: fixed; inset: 0; z-index: 80; background: #0B0C0F; color: #F2F4F7; display: flex; flex-direction: column; animation: ew-fade 0.16s ease-out; }
+.ew-amp-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: calc(10px + var(--safe-top)) 16px 10px; }
+.ew-amp-bar .n { font-size: 13px; color: #A0A7B3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ew-amp-x { border: 1px solid #2A2F38; background: #15181E; color: #F2F4F7; border-radius: 999px; padding: 0 16px; min-height: 40px; font-size: 14.5px; font-weight: 500; flex-shrink: 0; cursor: pointer; }
+.ew-amp-visor { flex: 1; width: 100%; border: 0; background: #fff; }
+.ew-amp-img { flex: 1; overflow: auto; display: flex; align-items: center; justify-content: center; cursor: zoom-in; -webkit-overflow-scrolling: touch; padding-bottom: var(--safe-bottom); }
+.ew-amp-img img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.ew-amp-img.zoom { display: block; cursor: zoom-out; }
+.ew-amp-img.zoom img { max-width: none; max-height: none; width: 200%; }
+.ew-amp-hint { text-align: center; font-size: 12.5px; color: #727A87; margin: 0; padding: 8px 0 calc(10px + var(--safe-bottom)); }
+
+@keyframes ew-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes ew-sube { from { transform: translateY(100%); } to { transform: translateY(0); } }
+@keyframes ew-entra { from { transform: translateX(100%); } to { transform: translateX(0); } }
+
+/* PC: panel lateral */
+@media (min-width: 821px) {
+  .ew-ficha { left: auto; top: 0; width: 480px; max-height: none; border-radius: 0; border-left: 1px solid var(--line); padding: 20px 24px 24px; box-shadow: -12px 0 40px rgba(0, 0, 0, 0.12); animation-name: ew-entra; }
+  .ew-ficha-asa { display: none; }
+  .ew-ficha-acciones { bottom: -24px; margin: 18px -24px -24px; padding: 14px 24px 20px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ew-ficha, .ew-ficha-fondo, .ew-amp { animation: none; }
+  .spin-ring { animation: none; }
+  .ew-comp.img img, .ew-comp.pdf iframe { transition: none; }
+}

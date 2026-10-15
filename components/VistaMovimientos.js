@@ -4,7 +4,7 @@ import ListaMovimientos from "./ListaMovimientos";
 const FILTROS = ["Todos", "Ingreso", "Aporte", "Gasto", "Retiro", "Transferencia"];
 const ETIQUETA = { Todos: "Todos", Ingreso: "Ingresos", Aporte: "Aportes", Gasto: "Gastos", Retiro: "Retiros", Transferencia: "Transferencias" };
 
-export default function VistaMovimientos({ c, ano }) {
+export default function VistaMovimientos({ c, ano, onEditar }) {
   const [filtro, setFiltro] = useState("Todos");
   const [busca, setBusca] = useState("");
 
@@ -32,7 +32,7 @@ export default function VistaMovimientos({ c, ano }) {
         <input id="mov-buscar" type="search" placeholder="Buscar movimientos" value={busca} onChange={e => setBusca(e.target.value)}
           style={{ width: "100%", border: "1px solid var(--line)", background: "var(--bg)", borderRadius: 12, padding: "0 14px", minHeight: 44, fontSize: 16, color: "var(--text)", outline: "none" }} />
       </div>
-      <ListaMovimientos items={items} vacio={busca || filtro !== "Todos" ? "Ningún movimiento coincide con el filtro." : `Sin movimientos en ${ano}.`} />
+      <ListaMovimientos items={items} onSelect={onEditar} vacio={busca || filtro !== "Todos" ? "Ningún movimiento coincide con el filtro." : `Sin movimientos en ${ano}.`} />
     </div>
   );
 }

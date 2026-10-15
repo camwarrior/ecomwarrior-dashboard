@@ -7,6 +7,7 @@ import VistaInicio from "../components/VistaInicio";
 import VistaFlujo from "../components/VistaFlujo";
 import VistaMovimientos from "../components/VistaMovimientos";
 import VistaAgregar from "../components/VistaAgregar";
+import FichaMovimiento from "../components/FichaMovimiento";
 
 const NAV = [
   { id: "inicio", label: "Inicio", corto: "Inicio", icon: IInicio },
@@ -53,6 +54,9 @@ export default function Dashboard() {
   const [tipoInicial, setTipoInicial] = useState("Ingreso");
   const [tc, setTc] = useState(null);
   const [toast, setToast] = useState("");
+  const [editando, setEditando] = useState(null); // movimiento abierto para editar
+  const [volverA, setVolverA] = useState("inicio");
+  const [ficha, setFicha] = useState(null); // movimiento abierto en la ficha de detalle
 
   const cargar = useCallback(async () => {
     setError("");
@@ -108,18 +112,30 @@ export default function Dashboard() {
 
   function irA(v, tipo) {
     if (v === "agregar") setTipoInicial(tipo || "Ingreso");
+    if (v !== "editar") setEditando(null);
     setVista(v);
     if (typeof window !== "undefined") window.scrollTo({ top: 0 });
   }
 
+  function abrirEdicion(m) {
+    setFicha(null);
+    setVolverA(vista);
+    setEditando(m);
+    setVista("editar");
+    window.scrollTo({ top: 0 });
+  }
+
   async function alGuardar() {
-    setVista("inicio");
-    setToast("Movimiento guardado");
+    const fueEdicion = vista === "editar";
+    setVista(fueEdicion ? volverA : "inicio");
+    setEditando(null);
+    setToast(fueEdicion ? "Cambios guardados" : "Movimiento guardado");
     window.scrollTo({ top: 0 });
     await cargar();
   }
 
-  const agregando = vista === "agregar";
+  // Formulario a pantalla completa: nuevo movimiento o edición
+  const agregando = vista === "agregar" || (vista === "editar" && !!editando);
 
   return (
     <>
@@ -165,8 +181,9 @@ export default function Dashboard() {
           )}
 
           {agregando ? (!datos ? <Esqueleto /> :
-            <VistaAgregar categorias={categorias} agencias={agencias} tc={tc} tipoInicial={tipoInicial}
-              onGuardado={alGuardar} onCancelar={() => irA("inicio")} />
+            <VistaAgregar key={editando ? "editar-" + editando.fila : "nuevo"} categorias={categorias} agencias={agencias} tc={tc}
+              tipoInicial={tipoInicial} editar={vista === "editar" ? editando : null}
+              onGuardado={alGuardar} onCancelar={() => irA(vista === "editar" ? volverA : "inicio")} />
           ) : error && !datos ? (
             <div className="ew-card" role="alert">
               <h2>No se pudieron cargar los datos</h2>
@@ -180,10 +197,10 @@ export default function Dashboard() {
               {error && <div className="ew-msg err" role="alert">{error}</div>}
               {vista === "inicio" && (
                 <VistaInicio c={c} ano={anoSel} actualizado={datos.actualizado} refrescar={refrescar}
-                  refrescando={refrescando} paleta={paleta} irA={irA} />
+                  refrescando={refrescando} paleta={paleta} irA={irA} onEditar={setFicha} />
               )}
               {vista === "flujo" && <VistaFlujo c={c} ano={anoSel} paleta={paleta} />}
-              {vista === "movimientos" && <VistaMovimientos c={c} ano={anoSel} />}
+              {vista === "movimientos" && <VistaMovimientos c={c} ano={anoSel} onEditar={setFicha} />}
             </>
           )}
         </main>
@@ -205,6 +222,10 @@ export default function Dashboard() {
               </button>
             ))}
           </nav>
+        )}
+
+        {ficha && !agregando && (
+          <FichaMovimiento key={ficha.fila} m={ficha} onCerrar={() => setFicha(null)} onEditar={abrirEdicion} />
         )}
 
         {toast && <div className="ew-toast" role="status">{toast}</div>}
