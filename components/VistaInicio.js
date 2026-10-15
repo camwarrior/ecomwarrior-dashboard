@@ -11,7 +11,7 @@ function Dinero({ valor }) {
 const COLOR_DESGLOSE = { meta: "var(--gasto)", ia: "var(--accent)", otros: "var(--neutral-bar)" };
 const AVATAR = { Mercury: "av-mercury", Slash: "av-slash" };
 
-export default function VistaInicio({ c, ano, actualizado, refrescar, refrescando, paleta, irA }) {
+export default function VistaInicio({ c, ano, actualizado, refrescar, refrescando, paleta, irA, onEditar }) {
   const utilPos = c.utilidadNeta >= 0;
   const principal = c.desgloseGastos[0];
 
@@ -139,7 +139,7 @@ export default function VistaInicio({ c, ano, actualizado, refrescar, refrescand
             <h2>Últimos movimientos</h2>
             <button className="ew-link" onClick={() => irA("movimientos")}>Ver todos</button>
           </div>
-          <ListaMovimientos items={c.ultimos.slice(0, 5)} vacio={`Sin movimientos en ${ano}.`} />
+          <ListaMovimientos items={c.ultimos.slice(0, 5)} onSelect={onEditar} vacio={`Sin movimientos en ${ano}.`} />
         </div>
       </section>
     </>

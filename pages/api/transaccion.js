@@ -18,6 +18,24 @@ export default async function handler(req, res) {
     return res.status(500).json({ ok: false, error: "Falta configuración del servidor" });
   }
 
+  // Editar: antes de enviar, confirma que el script publicado sabe editar (v9.4+).
+  // Un script anterior trataría la edición como un movimiento nuevo y lo duplicaría.
+  if (req.body && req.body.modo === "editar") {
+    const fila = Number(req.body.fila);
+    if (!Number.isInteger(fila) || fila < 2) {
+      return res.status(400).json({ ok: false, error: "No se pudo identificar la fila del movimiento. Actualiza los datos e intenta de nuevo." });
+    }
+    try {
+      const g = await fetch(url, { redirect: "follow", signal: AbortSignal.timeout(15000) });
+      const info = await g.json();
+      if (!Array.isArray(info.capacidades) || !info.capacidades.includes("editar")) {
+        return res.status(409).json({ ok: false, error: "Para editar desde la app falta actualizar el script del Sheet a la v9.4 y publicar una nueva versión de la implementación." });
+      }
+    } catch (e) {
+      return res.status(502).json({ ok: false, error: "No se pudo confirmar la versión del script de Google. No se guardó nada; intenta de nuevo." });
+    }
+  }
+
   try {
     const r = await fetch(url, {
       method: "POST",
